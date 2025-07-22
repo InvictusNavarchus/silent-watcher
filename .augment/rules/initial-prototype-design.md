@@ -302,20 +302,6 @@ src/
 }
 ```
 
-
-### Project Structure
-```
-src/
-├── types/           # Type definitions
-├── database/        # Database models and migrations
-├── services/        # Business logic services
-├── handlers/        # Message and event handlers
-├── web/            # Web interface
-├── utils/          # Utility functions
-├── config/         # Configuration management
-└── main.ts         # Application entry point
-```
-
 ## Deployment & Operations
 
 ### PM2 Configuration
