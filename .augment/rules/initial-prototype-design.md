@@ -88,7 +88,7 @@ data/
 ```env
 # Bot Configuration
 BOT_NAME=silent-watcher
-PHONE_NUMBER=+1234567890
+PHONE_NUMBER=+1234567890 # needed when using pairing code
 USE_PAIRING_CODE=false
 AUTO_RECONNECT=true
 
