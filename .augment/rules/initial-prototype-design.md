@@ -69,9 +69,9 @@ data/
 - **Monitoring**: prometheus metrics, health checks
 
 ### Frontend Dependencies
-- **Framework**: React 18+ with TypeScript
-- **Build Tool**: Vite 6+ for fast development and builds
-- **Styling**: Tailwind CSS 3.4+ (no complex component library)
+- **Framework**: React 19+ with TypeScript
+- **Build Tool**: Vite 7+ for fast development and builds
+- **Styling**: Tailwind CSS 4+ (no complex component library)
 - **State Management**: React built-in useState/useReducer + Context API (no external libraries)
 - **Data Fetching**: Native fetch with custom hooks (no TanStack Query)
 - **Routing**: React Router v6 for client-side navigation
