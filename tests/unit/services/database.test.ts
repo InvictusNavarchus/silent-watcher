@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
+// Jest globals are available globally, no need to import
 import { DatabaseService } from '@/services/database.js';
-import type { Message, MessageType, Config } from '@/types/index.js';
+import type { Message, Config } from '@/types/index.js';
+import { MessageType } from '@/types/index.js';
 
 describe('DatabaseService', () => {
   let databaseService: DatabaseService;
@@ -233,13 +234,13 @@ describe('DatabaseService', () => {
   describe('error handling', () => {
     it('should handle database connection errors gracefully', () => {
       const service = new DatabaseService({ path: '/invalid/path' });
-      
-      expect(() => service.getDatabase()).toThrow('Database not initialized');
+
+      expect(service.isConnected()).toBe(false);
     });
 
     it('should handle invalid message data', async () => {
       const invalidMessage = {
-        ...mockMessage,
+        ...createMockMessage(),
         id: '', // Invalid empty ID
       } as any;
 

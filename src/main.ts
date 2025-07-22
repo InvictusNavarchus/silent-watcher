@@ -7,8 +7,9 @@ import { WhatsAppService } from '@/services/whatsapp.js';
 import { MediaService } from '@/services/media.js';
 import { MessageHandler } from '@/handlers/message.js';
 import { WebServer } from '@/web/server.js';
-import { getCurrentTimestamp, generateId } from '@/utils/helpers.js';
+// import { getCurrentTimestamp, generateId } from '@/utils/helpers.js';
 import type { SystemEvent } from '@/types/index.js';
+import { SystemEventType, EventSeverity } from '@/types/index.js';
 
 class SilentWatcherBot {
   private databaseService: DatabaseService;
@@ -61,13 +62,13 @@ class SilentWatcherBot {
       }
 
       // Log startup event
-      await this.logSystemEvent('bot_started', 'Silent Watcher Bot started successfully', 'info');
+      await this.logSystemEvent(SystemEventType.BOT_STARTED, 'Silent Watcher Bot started successfully', EventSeverity.LOW);
 
       logger.info('Silent Watcher Bot started successfully');
 
     } catch (error) {
       logError(error as Error, { context: 'Bot startup' });
-      await this.logSystemEvent('error', `Bot startup failed: ${(error as Error).message}`, 'critical');
+      await this.logSystemEvent(SystemEventType.ERROR, `Bot startup failed: ${(error as Error).message}`, EventSeverity.CRITICAL);
       process.exit(1);
     }
   }
@@ -165,17 +166,17 @@ class SilentWatcherBot {
     metadata: Record<string, unknown> = {}
   ): Promise<void> {
     try {
-      const event: SystemEvent = {
-        id: generateId(),
-        eventType,
-        description,
-        metadata: JSON.stringify(metadata),
-        severity,
-        timestamp: getCurrentTimestamp(),
-        createdAt: getCurrentTimestamp()
-      };
-
       // TODO: Save to database when system events table is implemented
+      // const event: SystemEvent = {
+      //   id: generateId(),
+      //   eventType,
+      //   description,
+      //   metadata: JSON.stringify(metadata),
+      //   severity,
+      //   timestamp: getCurrentTimestamp(),
+      //   createdAt: getCurrentTimestamp()
+      // };
+      // await this.databaseService.saveSystemEvent(event);
       logger.info('System event', { eventType, description, severity, metadata });
     } catch (error) {
       logError(error as Error, { context: 'System event logging' });
@@ -193,7 +194,7 @@ class SilentWatcherBot {
 
     try {
       // Log shutdown event
-      await this.logSystemEvent('bot_stopped', 'Silent Watcher Bot shutting down', 'info');
+      await this.logSystemEvent(SystemEventType.BOT_STOPPED, 'Silent Watcher Bot shutting down', EventSeverity.LOW);
 
       // Stop web server
       if (this.webServer) {

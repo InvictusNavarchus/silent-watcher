@@ -1,4 +1,4 @@
-import { jest } from '@jest/globals';
+// Jest globals are available globally, no need to import
 import { config } from 'dotenv';
 import { join } from 'path';
 

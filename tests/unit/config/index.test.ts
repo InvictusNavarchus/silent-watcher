@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
+// Jest globals are available globally, no need to import
 
 describe('Configuration', () => {
   const originalEnv = process.env;

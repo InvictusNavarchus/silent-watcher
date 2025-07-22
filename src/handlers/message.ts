@@ -1,4 +1,5 @@
-import type { WAMessage, proto } from '@whiskeysockets/baileys';
+import type { WAMessage } from '@whiskeysockets/baileys';
+import { proto } from '@whiskeysockets/baileys';
 import { DatabaseService } from '@/services/database.js';
 import { MediaService } from '@/services/media.js';
 import { logger, logError } from '@/utils/logger.js';
@@ -9,12 +10,11 @@ import {
   isGroupJid, 
   normalizeJid 
 } from '@/utils/helpers.js';
-import type { 
-  Message, 
-  MessageType, 
-  MediaType, 
-  MessageEventType,
-  Config 
+import type { Message, Config } from '@/types/index.js';
+import {
+  MessageType,
+  MediaType,
+  MessageEventType
 } from '@/types/index.js';
 
 export class MessageHandler {

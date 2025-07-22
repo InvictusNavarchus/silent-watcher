@@ -1,9 +1,10 @@
-import { describe, it, expect, jest, beforeEach } from '@jest/globals';
+// Jest globals are available globally, no need to import
 import { MessageHandler } from '@/handlers/message.js';
 import { DatabaseService } from '@/services/database.js';
 import { MediaService } from '@/services/media.js';
 import type { WAMessage } from '@whiskeysockets/baileys';
-import type { Config, MessageType } from '@/types/index.js';
+import type { Config } from '@/types/index.js';
+import { MessageType } from '@/types/index.js';
 
 // Mock services
 const mockDatabaseService = {

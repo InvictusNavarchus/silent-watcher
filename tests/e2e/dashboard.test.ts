@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from '@jest/globals';
+// Jest globals are available globally, no need to import
 import { chromium, Browser, Page, BrowserContext } from 'playwright';
 
 describe('Dashboard E2E Tests', () => {

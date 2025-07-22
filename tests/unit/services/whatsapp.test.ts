@@ -1,4 +1,4 @@
-import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
+// Jest globals are available globally, no need to import
 import { EventEmitter } from 'events';
 import type { Config } from '@/types/index.js';
 
@@ -10,10 +10,10 @@ const mockSocket = {
 };
 
 const mockMakeWASocket = jest.fn(() => mockSocket);
-const mockUseMultiFileAuthState = jest.fn(() => ({
+const mockUseMultiFileAuthState = jest.fn().mockResolvedValue({
   state: {},
   saveCreds: jest.fn()
-}));
+});
 
 jest.mock('@whiskeysockets/baileys', () => ({
   __esModule: true,

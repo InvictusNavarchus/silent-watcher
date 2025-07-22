@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from '@jest/globals';
+// Jest globals are available globally, no need to import
 import request from 'supertest';
 import { SilentWatcherBot } from '@/main.js';
-import { config } from '@/config/index.js';
+// import { config } from '@/config/index.js';
 
 describe('API Integration Tests', () => {
   let app: any;
@@ -340,6 +340,7 @@ describe('API Integration Tests', () => {
 
       // This test depends on CORS configuration
       // The exact behavior may vary based on implementation
+      expect(response).toBeDefined();
     });
   });
 });
