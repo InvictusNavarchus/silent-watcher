@@ -38,6 +38,7 @@
   "license": "UNLICENSED",
   "dependencies": {
     "@whiskeysockets/baileys": "^6.7.18",
+    "@hapi/boom": "^10.0.1",
     "better-sqlite3": "^11.5.0",
     "express": "^5.0.1",
     "winston": "^3.17.0",

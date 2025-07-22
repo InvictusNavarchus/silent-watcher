@@ -1,0 +1,383 @@
+import makeWASocket, { 
+  ConnectionState, 
+  DisconnectReason, 
+  useMultiFileAuthState,
+  WASocket,
+  BaileysEventMap,
+  proto
+} from '@whiskeysockets/baileys';
+import { Boom } from '@hapi/boom';
+import { logger, logError } from '@/utils/logger.js';
+import { retry, sleep, getCurrentTimestamp, generateId } from '@/utils/helpers.js';
+import type { Config, BotState, SystemEventType, EventSeverity } from '@/types/index.js';
+import { EventEmitter } from 'events';
+
+export class WhatsAppService extends EventEmitter {
+  private socket: WASocket | null = null;
+  private config: Config;
+  private state: BotState;
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 10;
+  private isShuttingDown = false;
+
+  constructor(config: Config) {
+    super();
+    this.config = config;
+    this.state = {
+      isConnected: false,
+      connectionState: 'close',
+      messagesProcessed: 0,
+      uptime: 0
+    };
+  }
+
+  /**
+   * Initialize WhatsApp connection
+   */
+  public async initialize(): Promise<void> {
+    try {
+      logger.info('Initializing WhatsApp service');
+      
+      const { state: authState, saveCreds } = await useMultiFileAuthState('./data/auth/baileys_auth_info');
+      
+      this.socket = makeWASocket({
+        auth: authState,
+        printQRInTerminal: !this.config.bot.usePairingCode,
+        logger: {
+          level: 'silent', // Reduce Baileys logging noise
+          child: () => ({ level: 'silent' } as any)
+        } as any,
+        browser: ['Silent Watcher', 'Chrome', '1.0.0'],
+        generateHighQualityLinkPreview: true,
+        markOnlineOnConnect: false,
+        syncFullHistory: false,
+        defaultQueryTimeoutMs: 60000,
+        keepAliveIntervalMs: 30000,
+        retryRequestDelayMs: 250
+      });
+
+      this.setupEventHandlers(saveCreds);
+      
+      // Handle pairing code if enabled
+      if (this.config.bot.usePairingCode && this.config.bot.phoneNumber) {
+        const code = await this.socket.requestPairingCode(this.config.bot.phoneNumber);
+        logger.info('Pairing code generated', { code });
+        this.emit('pairing-code', code);
+      }
+
+      logger.info('WhatsApp service initialized');
+    } catch (error) {
+      logError(error as Error, { context: 'WhatsApp initialization' });
+      throw error;
+    }
+  }
+
+  /**
+   * Setup event handlers for WhatsApp socket
+   */
+  private setupEventHandlers(saveCreds: () => Promise<void>): void {
+    if (!this.socket) return;
+
+    // Connection state updates
+    this.socket.ev.on('connection.update', async (update) => {
+      await this.handleConnectionUpdate(update);
+    });
+
+    // Save credentials when updated
+    this.socket.ev.on('creds.update', saveCreds);
+
+    // Handle incoming messages
+    this.socket.ev.on('messages.upsert', async (messageUpdate) => {
+      await this.handleMessagesUpsert(messageUpdate);
+    });
+
+    // Handle message updates (edits, deletions, reactions)
+    this.socket.ev.on('messages.update', async (messageUpdates) => {
+      await this.handleMessagesUpdate(messageUpdates);
+    });
+
+    // Handle message reactions
+    this.socket.ev.on('messages.reaction', async (reactions) => {
+      await this.handleMessageReactions(reactions);
+    });
+
+    // Handle chat updates
+    this.socket.ev.on('chats.update', async (chatUpdates) => {
+      await this.handleChatsUpdate(chatUpdates);
+    });
+
+    // Handle contact updates
+    this.socket.ev.on('contacts.update', async (contactUpdates) => {
+      await this.handleContactsUpdate(contactUpdates);
+    });
+
+    // Handle group updates
+    this.socket.ev.on('groups.update', async (groupUpdates) => {
+      await this.handleGroupsUpdate(groupUpdates);
+    });
+
+    // Handle presence updates
+    this.socket.ev.on('presence.update', async (presenceUpdate) => {
+      await this.handlePresenceUpdate(presenceUpdate);
+    });
+  }
+
+  /**
+   * Handle connection state updates
+   */
+  private async handleConnectionUpdate(update: Partial<ConnectionState>): Promise<void> {
+    const { connection, lastDisconnect, qr } = update;
+
+    if (qr) {
+      logger.info('QR code generated');
+      this.state.qrCode = qr;
+      this.emit('qr-code', qr);
+      this.emitSystemEvent('qr_code_generated', 'QR code generated for authentication', 'info');
+    }
+
+    if (connection === 'close') {
+      this.state.isConnected = false;
+      this.state.connectionState = 'close';
+      
+      const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
+      
+      if (shouldReconnect && this.config.bot.autoReconnect && !this.isShuttingDown) {
+        await this.handleReconnection(lastDisconnect);
+      } else {
+        logger.info('Connection closed permanently');
+        this.emitSystemEvent('connection_closed', 'WhatsApp connection closed', 'medium');
+      }
+    } else if (connection === 'open') {
+      this.state.isConnected = true;
+      this.state.connectionState = 'open';
+      this.state.lastConnected = getCurrentTimestamp();
+      this.reconnectAttempts = 0;
+      
+      logger.info('WhatsApp connection established');
+      this.emitSystemEvent('connection_opened', 'WhatsApp connection established', 'info');
+      this.emit('connected');
+    } else if (connection === 'connecting') {
+      this.state.connectionState = 'connecting';
+      logger.info('Connecting to WhatsApp...');
+    }
+  }
+
+  /**
+   * Handle reconnection logic with exponential backoff
+   */
+  private async handleReconnection(lastDisconnect: any): Promise<void> {
+    this.reconnectAttempts++;
+    
+    if (this.reconnectAttempts > this.maxReconnectAttempts) {
+      logger.error('Max reconnection attempts reached');
+      this.emitSystemEvent('error', 'Max reconnection attempts reached', 'critical');
+      return;
+    }
+
+    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 30000);
+    logger.info(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+    
+    await sleep(delay);
+    
+    try {
+      await this.initialize();
+    } catch (error) {
+      logError(error as Error, { context: 'Reconnection attempt', attempt: this.reconnectAttempts });
+    }
+  }
+
+  /**
+   * Handle incoming messages
+   */
+  private async handleMessagesUpsert(messageUpdate: BaileysEventMap['messages.upsert']): Promise<void> {
+    const { messages, type } = messageUpdate;
+
+    for (const message of messages) {
+      try {
+        if (type === 'notify') {
+          this.state.messagesProcessed++;
+          this.emit('message', message);
+          logger.debug('Message received', { 
+            messageId: message.key.id, 
+            chatId: message.key.remoteJid,
+            type: message.message ? Object.keys(message.message)[0] : 'unknown'
+          });
+        }
+      } catch (error) {
+        logError(error as Error, { 
+          context: 'Message processing', 
+          messageId: message.key.id 
+        });
+      }
+    }
+  }
+
+  /**
+   * Handle message updates (edits, deletions)
+   */
+  private async handleMessagesUpdate(messageUpdates: BaileysEventMap['messages.update']): Promise<void> {
+    for (const update of messageUpdates) {
+      try {
+        this.emit('message-update', update);
+        logger.debug('Message updated', { 
+          messageId: update.key.id,
+          chatId: update.key.remoteJid,
+          update: Object.keys(update.update || {})
+        });
+      } catch (error) {
+        logError(error as Error, { 
+          context: 'Message update processing', 
+          messageId: update.key.id 
+        });
+      }
+    }
+  }
+
+  /**
+   * Handle message reactions
+   */
+  private async handleMessageReactions(reactions: BaileysEventMap['messages.reaction']): Promise<void> {
+    for (const reaction of reactions) {
+      try {
+        this.emit('message-reaction', reaction);
+        logger.debug('Message reaction', { 
+          messageId: reaction.key.id,
+          chatId: reaction.key.remoteJid,
+          reaction: reaction.reaction?.text
+        });
+      } catch (error) {
+        logError(error as Error, { 
+          context: 'Message reaction processing', 
+          messageId: reaction.key.id 
+        });
+      }
+    }
+  }
+
+  /**
+   * Handle chat updates
+   */
+  private async handleChatsUpdate(chatUpdates: BaileysEventMap['chats.update']): Promise<void> {
+    for (const chat of chatUpdates) {
+      try {
+        this.emit('chat-update', chat);
+        logger.debug('Chat updated', { chatId: chat.id });
+      } catch (error) {
+        logError(error as Error, { 
+          context: 'Chat update processing', 
+          chatId: chat.id 
+        });
+      }
+    }
+  }
+
+  /**
+   * Handle contact updates
+   */
+  private async handleContactsUpdate(contactUpdates: BaileysEventMap['contacts.update']): Promise<void> {
+    for (const contact of contactUpdates) {
+      try {
+        this.emit('contact-update', contact);
+        logger.debug('Contact updated', { contactId: contact.id });
+      } catch (error) {
+        logError(error as Error, { 
+          context: 'Contact update processing', 
+          contactId: contact.id 
+        });
+      }
+    }
+  }
+
+  /**
+   * Handle group updates
+   */
+  private async handleGroupsUpdate(groupUpdates: BaileysEventMap['groups.update']): Promise<void> {
+    for (const group of groupUpdates) {
+      try {
+        this.emit('group-update', group);
+        logger.debug('Group updated', { groupId: group.id });
+      } catch (error) {
+        logError(error as Error, { 
+          context: 'Group update processing', 
+          groupId: group.id 
+        });
+      }
+    }
+  }
+
+  /**
+   * Handle presence updates
+   */
+  private async handlePresenceUpdate(presenceUpdate: BaileysEventMap['presence.update']): Promise<void> {
+    try {
+      this.emit('presence-update', presenceUpdate);
+      logger.debug('Presence updated', { 
+        chatId: presenceUpdate.id,
+        presences: Object.keys(presenceUpdate.presences || {})
+      });
+    } catch (error) {
+      logError(error as Error, { 
+        context: 'Presence update processing', 
+        chatId: presenceUpdate.id 
+      });
+    }
+  }
+
+  /**
+   * Emit system event
+   */
+  private emitSystemEvent(
+    eventType: SystemEventType, 
+    description: string, 
+    severity: EventSeverity,
+    metadata: Record<string, unknown> = {}
+  ): void {
+    const event = {
+      id: generateId(),
+      eventType,
+      description,
+      metadata: JSON.stringify(metadata),
+      severity,
+      timestamp: getCurrentTimestamp(),
+      createdAt: getCurrentTimestamp()
+    };
+
+    this.emit('system-event', event);
+  }
+
+  /**
+   * Get current bot state
+   */
+  public getState(): BotState {
+    return {
+      ...this.state,
+      uptime: this.state.lastConnected ? getCurrentTimestamp() - this.state.lastConnected : 0
+    };
+  }
+
+  /**
+   * Get WhatsApp socket instance
+   */
+  public getSocket(): WASocket | null {
+    return this.socket;
+  }
+
+  /**
+   * Gracefully shutdown the service
+   */
+  public async shutdown(): Promise<void> {
+    this.isShuttingDown = true;
+    
+    if (this.socket) {
+      logger.info('Shutting down WhatsApp service');
+      this.socket.end(undefined);
+      this.socket = null;
+    }
+    
+    this.state.isConnected = false;
+    this.state.connectionState = 'close';
+    
+    this.emitSystemEvent('bot_stopped', 'WhatsApp bot stopped', 'info');
+    logger.info('WhatsApp service shutdown complete');
+  }
+}
