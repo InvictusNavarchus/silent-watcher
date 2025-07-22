@@ -94,8 +94,6 @@ AUTO_RECONNECT=true
 
 # Database
 DB_PATH=./data/database/silent-watcher.db
-DB_BACKUP_INTERVAL=3600000
-DATA_RETENTION_DAYS=90
 
 # Web Interface
 WEB_ENABLED=true
