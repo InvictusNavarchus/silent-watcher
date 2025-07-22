@@ -17,7 +17,7 @@ export default {
       }
     }]
   },
-  moduleNameMapping: {
+  moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1'
   },
   collectCoverageFrom: [
