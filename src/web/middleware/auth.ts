@@ -125,7 +125,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     const token = jwt.sign(payload, config.jwt.secret, {
       expiresIn: config.jwt.expiresIn
-    });
+    } as jwt.SignOptions);
 
     logger.info('Successful login', { username, ip: req.ip });
 
@@ -201,7 +201,7 @@ export const refreshToken = (req: Request, res: Response): void => {
 
     const token = jwt.sign(payload, config.jwt.secret, {
       expiresIn: config.jwt.expiresIn
-    });
+    } as jwt.SignOptions);
 
     res.json({
       success: true,

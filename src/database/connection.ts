@@ -191,20 +191,20 @@ export class DatabaseConnection {
 
     try {
       logger.info('Creating database backup', { backupPath });
-      
-      const backup = this.db.backup(backupPath);
-      
-      return new Promise((resolve, reject) => {
-        backup.step(-1, (err) => {
-          if (err) {
-            reject(err);
-          } else {
-            backup.finish();
-            logger.info('Database backup completed successfully');
-            resolve();
-          }
-        });
+
+      // Use better-sqlite3's backup method correctly
+      await this.db.backup(backupPath, {
+        progress: (info) => {
+          logger.debug('Backup progress', {
+            totalPages: info.totalPages,
+            remainingPages: info.remainingPages
+          });
+          return 100; // Continue with all remaining pages
+        }
       });
+
+      logger.info('Database backup completed successfully');
+      return;
     } catch (error) {
       logger.error('Database backup failed', { error });
       throw error;

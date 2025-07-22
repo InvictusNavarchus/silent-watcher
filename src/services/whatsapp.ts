@@ -1,15 +1,15 @@
-import makeWASocket, { 
-  ConnectionState, 
-  DisconnectReason, 
+import makeWASocket, {
+  ConnectionState,
+  DisconnectReason,
   useMultiFileAuthState,
   WASocket,
-  BaileysEventMap,
-  proto
+  BaileysEventMap
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import { logger, logError } from '@/utils/logger.js';
-import { retry, sleep, getCurrentTimestamp, generateId } from '@/utils/helpers.js';
-import type { Config, BotState, SystemEventType, EventSeverity } from '@/types/index.js';
+import { sleep, getCurrentTimestamp, generateId } from '@/utils/helpers.js';
+import type { Config, BotState } from '@/types/index.js';
+import { SystemEventType, EventSeverity } from '@/types/index.js';
 import { EventEmitter } from 'events';
 
 export class WhatsAppService extends EventEmitter {
@@ -132,7 +132,7 @@ export class WhatsAppService extends EventEmitter {
       logger.info('QR code generated');
       this.state.qrCode = qr;
       this.emit('qr-code', qr);
-      this.emitSystemEvent('qr_code_generated', 'QR code generated for authentication', 'info');
+      this.emitSystemEvent(SystemEventType.QR_CODE_GENERATED, 'QR code generated for authentication', EventSeverity.LOW);
     }
 
     if (connection === 'close') {
@@ -145,7 +145,7 @@ export class WhatsAppService extends EventEmitter {
         await this.handleReconnection(lastDisconnect);
       } else {
         logger.info('Connection closed permanently');
-        this.emitSystemEvent('connection_closed', 'WhatsApp connection closed', 'medium');
+        this.emitSystemEvent(SystemEventType.CONNECTION_CLOSED, 'WhatsApp connection closed', EventSeverity.MEDIUM);
       }
     } else if (connection === 'open') {
       this.state.isConnected = true;
@@ -154,7 +154,7 @@ export class WhatsAppService extends EventEmitter {
       this.reconnectAttempts = 0;
       
       logger.info('WhatsApp connection established');
-      this.emitSystemEvent('connection_opened', 'WhatsApp connection established', 'info');
+      this.emitSystemEvent(SystemEventType.CONNECTION_OPENED, 'WhatsApp connection established', EventSeverity.LOW);
       this.emit('connected');
     } else if (connection === 'connecting') {
       this.state.connectionState = 'connecting';
@@ -165,12 +165,12 @@ export class WhatsAppService extends EventEmitter {
   /**
    * Handle reconnection logic with exponential backoff
    */
-  private async handleReconnection(lastDisconnect: any): Promise<void> {
+  private async handleReconnection(_lastDisconnect: any): Promise<void> {
     this.reconnectAttempts++;
     
     if (this.reconnectAttempts > this.maxReconnectAttempts) {
       logger.error('Max reconnection attempts reached');
-      this.emitSystemEvent('error', 'Max reconnection attempts reached', 'critical');
+      this.emitSystemEvent(SystemEventType.ERROR, 'Max reconnection attempts reached', EventSeverity.CRITICAL);
       return;
     }
 
@@ -377,7 +377,7 @@ export class WhatsAppService extends EventEmitter {
     this.state.isConnected = false;
     this.state.connectionState = 'close';
     
-    this.emitSystemEvent('bot_stopped', 'WhatsApp bot stopped', 'info');
+    this.emitSystemEvent(SystemEventType.BOT_STOPPED, 'WhatsApp bot stopped', EventSeverity.LOW);
     logger.info('WhatsApp service shutdown complete');
   }
 }

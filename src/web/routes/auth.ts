@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { login, logout, getCurrentUser, refreshToken, authenticate } from '@/web/middleware/auth.js';
-import { logger } from '@/utils/logger.js';
+// import { logger } from '@/utils/logger.js';
 
 export function createAuthRouter(): Router {
   const router = Router();

@@ -3,7 +3,7 @@ import { DatabaseService } from '@/services/database.js';
 import { WhatsAppService } from '@/services/whatsapp.js';
 import { authenticate, requireAdmin } from '@/web/middleware/auth.js';
 import { logger } from '@/utils/logger.js';
-import { formatBytes } from '@/utils/helpers.js';
+// import { formatBytes } from '@/utils/helpers.js';
 import type { MessageQuery, StatsOverview } from '@/types/index.js';
 
 export function createApiRouter(
@@ -20,7 +20,7 @@ export function createApiRouter(
     try {
       const query: MessageQuery = {
         chatId: req.query.chat as string,
-        days: req.query.days ? parseInt(req.query.days as string) : undefined,
+        days: req.query.days ? parseInt(req.query.days as string) : 7,
         type: req.query.type as any,
         state: req.query.state as any,
         search: req.query.search as string,
@@ -82,7 +82,7 @@ export function createApiRouter(
   });
 
   // Chat Management Routes
-  router.get('/chats', async (req, res) => {
+  router.get('/chats', async (_req, res) => {
     try {
       // TODO: Implement getChats in DatabaseService
       res.json({
@@ -155,7 +155,7 @@ export function createApiRouter(
   // Export Routes (Admin only)
   router.post('/export', requireAdmin, async (req, res) => {
     try {
-      const { format = 'json', ...query } = req.body;
+      const { format: _format = 'json' } = req.body;
       
       // TODO: Implement data export
       res.status(501).json({
@@ -172,7 +172,7 @@ export function createApiRouter(
   });
 
   // Stats Routes
-  router.get('/stats/overview', async (req, res) => {
+  router.get('/stats/overview', async (_req, res) => {
     try {
       // TODO: Implement comprehensive stats
       const mockStats: StatsOverview = {
@@ -199,7 +199,7 @@ export function createApiRouter(
     }
   });
 
-  router.get('/stats/chats', async (req, res) => {
+  router.get('/stats/chats', async (_req, res) => {
     try {
       // TODO: Implement chat statistics
       res.json({
@@ -216,7 +216,7 @@ export function createApiRouter(
     }
   });
 
-  router.get('/stats/media', async (req, res) => {
+  router.get('/stats/media', async (_req, res) => {
     try {
       // TODO: Implement media statistics
       res.json({
@@ -238,7 +238,7 @@ export function createApiRouter(
   });
 
   // Health Check
-  router.get('/health', async (req, res) => {
+  router.get('/health', async (_req, res) => {
     try {
       const whatsappState = whatsappService.getState();
       const dbConnected = databaseService.isConnected();
@@ -274,7 +274,7 @@ export function createApiRouter(
   });
 
   // Bot Control Routes (Admin only)
-  router.get('/bot/status', requireAdmin, async (req, res) => {
+  router.get('/bot/status', requireAdmin, async (_req, res) => {
     try {
       const status = {
         whatsapp: whatsappService.getState(),

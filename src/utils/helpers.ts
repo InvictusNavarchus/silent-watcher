@@ -118,13 +118,13 @@ export function parseDuration(duration: string): number {
   }
   
   const [, value, unit] = match;
-  const multiplier = units[unit.toLowerCase()];
+  const multiplier = units[unit!.toLowerCase()];
   
   if (!multiplier) {
     throw new Error(`Unknown duration unit: ${unit}`);
   }
   
-  return parseInt(value, 10) * multiplier;
+  return parseInt(value!, 10) * multiplier;
 }
 
 /**

@@ -1,4 +1,4 @@
-import type { WAMessage, WASocket, Contact, GroupMetadata } from '@whiskeysockets/baileys';
+import type { WAMessage } from '@whiskeysockets/baileys';
 
 // Database Models
 export interface Message {
@@ -9,15 +9,15 @@ export interface Message {
   messageType: MessageType;
   timestamp: number;
   isFromMe: boolean;
-  quotedMessageId?: string;
-  mediaPath?: string;
-  mediaType?: MediaType;
-  mediaMimeType?: string;
-  mediaSize?: number;
+  quotedMessageId?: string | undefined;
+  mediaPath?: string | undefined;
+  mediaType?: MediaType | undefined;
+  mediaMimeType?: string | undefined;
+  mediaSize?: number | undefined;
   isForwarded: boolean;
-  forwardedFrom?: string;
+  forwardedFrom?: string | undefined;
   isEphemeral: boolean;
-  ephemeralDuration?: number;
+  ephemeralDuration?: number | undefined;
   isViewOnce: boolean;
   reactions: string; // JSON string of reactions
   createdAt: number;
@@ -58,12 +58,12 @@ export interface Media {
   filePath: string;
   mimeType: string;
   size: number;
-  width?: number;
-  height?: number;
-  duration?: number;
-  thumbnailPath?: string;
+  width?: number | undefined;
+  height?: number | undefined;
+  duration?: number | undefined;
+  thumbnailPath?: string | undefined;
   isCompressed: boolean;
-  originalSize?: number;
+  originalSize?: number | undefined;
   createdAt: number;
 }
 

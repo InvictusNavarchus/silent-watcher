@@ -65,7 +65,7 @@ export class WebServer {
       
       res.on('finish', () => {
         const duration = Date.now() - start;
-        logRequest(req, duration);
+        logRequest({ ...req, ip: req.ip || 'unknown' }, duration);
       });
       
       next();
@@ -81,7 +81,7 @@ export class WebServer {
    */
   private setupRoutes(): void {
     // Health check (no auth required)
-    this.app.get('/health', (req, res) => {
+    this.app.get('/health', (_req, res) => {
       res.json({
         success: true,
         data: {
@@ -102,7 +102,7 @@ export class WebServer {
     this.setupStaticFileServing();
 
     // Catch-all handler for SPA routing
-    this.app.get('*', (req, res) => {
+    this.app.get('*', (_req, res) => {
       const frontendPath = join(process.cwd(), 'frontend', 'dist', 'index.html');
       
       if (existsSync(frontendPath)) {
@@ -147,7 +147,7 @@ export class WebServer {
    */
   private setupErrorHandling(): void {
     // 404 handler for API routes
-    this.app.use('/api/*', (req, res) => {
+    this.app.use('/api/*', (_req, res) => {
       res.status(404).json({
         success: false,
         error: 'API endpoint not found'
@@ -155,7 +155,7 @@ export class WebServer {
     });
 
     // Global error handler
-    this.app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    this.app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
       logger.error('Express error', {
         error: err.message,
         stack: err.stack,

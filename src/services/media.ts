@@ -5,16 +5,17 @@ import sharp from 'sharp';
 import { logger, logError } from '@/utils/logger.js';
 import { generateId, sanitizeFilename, formatBytes } from '@/utils/helpers.js';
 import { DatabaseService } from '@/services/database.js';
-import type { Config, Message, Media, MediaType } from '@/types/index.js';
+import type { Config, Message, Media } from '@/types/index.js';
+import { MediaType } from '@/types/index.js';
 
 export class MediaService {
   private config: Config;
-  private databaseService: DatabaseService;
+  // private databaseService: DatabaseService;
   private mediaBasePath: string;
 
-  constructor(config: Config, databaseService: DatabaseService) {
+  constructor(config: Config, _databaseService: DatabaseService) {
     this.config = config;
-    this.databaseService = databaseService;
+    // this.databaseService = databaseService;
     this.mediaBasePath = join(process.cwd(), 'data', 'media');
   }
 
@@ -102,7 +103,7 @@ export class MediaService {
         size: finalBuffer.length,
         width: await this.getImageWidth(finalBuffer, message.mediaType),
         height: await this.getImageHeight(finalBuffer, message.mediaType),
-        duration: await this.getMediaDuration(waMessage),
+        duration: (await this.getMediaDuration(waMessage)) ?? undefined,
         thumbnailPath,
         isCompressed,
         originalSize
@@ -174,7 +175,7 @@ export class MediaService {
   /**
    * Generate video thumbnail
    */
-  private async generateVideoThumbnail(buffer: Buffer, filePath: string): Promise<string | undefined> {
+  private async generateVideoThumbnail(_buffer: Buffer, _filePath: string): Promise<string | undefined> {
     try {
       // For now, we'll skip video thumbnail generation as it requires ffmpeg
       // This can be implemented later with a video processing library
@@ -295,9 +296,7 @@ export class MediaService {
       return Number(msg.audioMessage.seconds);
     }
     
-    if (msg?.pttMessage?.seconds) {
-      return Number(msg.pttMessage.seconds);
-    }
+
     
     if (msg?.videoMessage?.seconds) {
       return Number(msg.videoMessage.seconds);

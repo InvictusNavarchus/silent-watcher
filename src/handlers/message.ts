@@ -3,12 +3,10 @@ import { proto } from '@whiskeysockets/baileys';
 import { DatabaseService } from '@/services/database.js';
 import { MediaService } from '@/services/media.js';
 import { logger, logError } from '@/utils/logger.js';
-import { 
-  generateId, 
-  getCurrentTimestamp, 
-  extractPhoneNumber, 
-  isGroupJid, 
-  normalizeJid 
+import {
+  generateId,
+  getCurrentTimestamp,
+  normalizeJid
 } from '@/utils/helpers.js';
 import type { Message, Config } from '@/types/index.js';
 import {
@@ -49,7 +47,7 @@ export class MessageHandler {
       
       // Download and process media if enabled
       if (message.mediaPath && this.config.media.downloadEnabled) {
-        await this.mediaService.processMessageMedia(waMessage, message);
+        await this.mediaService.processMessageMedia(waMessage, message as Message);
       }
 
       logger.debug('Message processed successfully', { 
@@ -147,7 +145,7 @@ export class MessageHandler {
         await this.databaseService.createMessageEvent({
           id: generateId(),
           messageId,
-          eventType: 'reaction_added',
+          eventType: MessageEventType.REACTION_ADDED,
           newContent: emoji,
           timestamp: getCurrentTimestamp(),
           metadata: JSON.stringify({ sender: senderJid })
@@ -160,7 +158,7 @@ export class MessageHandler {
         await this.databaseService.createMessageEvent({
           id: generateId(),
           messageId,
-          eventType: 'reaction_removed',
+          eventType: MessageEventType.REACTION_REMOVED,
           timestamp: getCurrentTimestamp(),
           metadata: JSON.stringify({ sender: senderJid })
         });
@@ -233,15 +231,15 @@ export class MessageHandler {
       messageType,
       timestamp,
       isFromMe: Boolean(waMessage.key.fromMe),
-      quotedMessageId,
+      quotedMessageId: quotedMessageId ?? undefined,
       mediaPath,
       mediaType,
       mediaMimeType,
       mediaSize,
       isForwarded,
-      forwardedFrom,
+      forwardedFrom: forwardedFrom ?? undefined,
       isEphemeral,
-      ephemeralDuration,
+      ephemeralDuration: ephemeralDuration ?? undefined,
       isViewOnce,
       reactions: '[]'
     };
@@ -257,7 +255,7 @@ export class MessageHandler {
     if (message.conversation || message.extendedTextMessage) return MessageType.TEXT;
     if (message.imageMessage) return MessageType.IMAGE;
     if (message.videoMessage) return MessageType.VIDEO;
-    if (message.audioMessage || message.pttMessage) return MessageType.AUDIO;
+    if (message.audioMessage) return MessageType.AUDIO;
     if (message.documentMessage) return MessageType.DOCUMENT;
     if (message.stickerMessage) return MessageType.STICKER;
     if (message.locationMessage || message.liveLocationMessage) return MessageType.LOCATION;
@@ -287,7 +285,7 @@ export class MessageHandler {
 
     // Handle system messages
     if (waMessage.messageStubType) {
-      return this.getSystemMessageText(waMessage.messageStubType, waMessage.messageStubParameters);
+      return this.getSystemMessageText(waMessage.messageStubType, waMessage.messageStubParameters ?? undefined);
     }
 
     return '[Media or unsupported message]';
@@ -304,7 +302,6 @@ export class MessageHandler {
       message.imageMessage ||
       message.videoMessage ||
       message.audioMessage ||
-      message.pttMessage ||
       message.documentMessage ||
       message.stickerMessage
     );
@@ -340,8 +337,8 @@ export class MessageHandler {
       };
     }
 
-    if (message.audioMessage || message.pttMessage) {
-      const audioMsg = message.audioMessage || message.pttMessage!;
+    if (message.audioMessage) {
+      const audioMsg = message.audioMessage;
       return {
         path: `audio/${messageId}.ogg`,
         type: MediaType.AUDIO,
@@ -380,7 +377,7 @@ export class MessageHandler {
     await this.databaseService.createMessageEvent({
       id: generateId(),
       messageId,
-      eventType: 'deleted',
+      eventType: MessageEventType.DELETED,
       oldContent: existingMessage.content,
       timestamp: getCurrentTimestamp(),
       metadata: JSON.stringify({ chatId: existingMessage.chatId })

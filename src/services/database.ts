@@ -2,19 +2,14 @@ import type { Database } from 'better-sqlite3';
 import { DatabaseConnection } from '@/database/connection.js';
 import { logger } from '@/utils/logger.js';
 import { generateId, getCurrentTimestamp } from '@/utils/helpers.js';
-import type { 
-  Message, 
-  MessageEvent, 
-  Chat, 
-  Media, 
-  Contact, 
-  Group, 
-  SystemEvent,
+import type {
+  Message,
+  MessageEvent,
   MessageQuery,
   PaginatedResponse,
-  StatsOverview,
   Config
 } from '@/types/index.js';
+import { MessageEventType } from '@/types/index.js';
 
 export class DatabaseService {
   private connection: DatabaseConnection;
@@ -96,7 +91,7 @@ export class DatabaseService {
       await this.createMessageEvent({
         id: generateId(),
         messageId: fullMessage.id,
-        eventType: 'created',
+        eventType: MessageEventType.CREATED,
         timestamp: fullMessage.timestamp,
         metadata: JSON.stringify({ chatId: fullMessage.chatId })
       });
@@ -136,7 +131,7 @@ export class DatabaseService {
         await this.createMessageEvent({
           id: generateId(),
           messageId: id,
-          eventType: 'edited',
+          eventType: MessageEventType.EDITED,
           oldContent: existing.content,
           newContent: updates.content,
           timestamp: getCurrentTimestamp(),
@@ -163,7 +158,7 @@ export class DatabaseService {
       await this.createMessageEvent({
         id: generateId(),
         messageId: id,
-        eventType: 'deleted',
+        eventType: MessageEventType.DELETED,
         oldContent: existing.content,
         timestamp: getCurrentTimestamp(),
         metadata: JSON.stringify({ chatId: existing.chatId })
@@ -200,7 +195,7 @@ export class DatabaseService {
     if (!this.db) throw new Error('Database not initialized');
 
     try {
-      const { chatId, days = 7, type, state, search, limit = 50, offset = 0 } = query;
+      const { chatId, days = 7, type, search, limit = 50, offset = 0 } = query;
       
       let whereClause = 'WHERE 1=1';
       const params: any[] = [];
