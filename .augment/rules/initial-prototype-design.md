@@ -69,18 +69,18 @@ data/
 - **Monitoring**: prometheus metrics, health checks
 
 ### Frontend Dependencies
-- **Framework**: Svelte 5+ with TypeScript
-- **Build Tool**: Vite 6+ with @sveltejs/vite-plugin-svelte for fast development and builds
-- **Styling**: Tailwind CSS 3.4+ with Headless UI for Svelte components
-- **State Management**: Svelte stores (built-in) with custom stores for complex state
-- **Data Fetching**: TanStack Query (Svelte Query) v5 for server state management
-- **Routing**: SvelteKit routing or @roxi/routify for client-side navigation
-- **Icons**: Lucide Svelte for consistent iconography
-- **Animations**: Svelte transitions and animations (built-in) with custom motion utilities
+- **Framework**: React 18+ with TypeScript
+- **Build Tool**: Vite 6+ for fast development and builds
+- **Styling**: Tailwind CSS 3.4+ (no complex component library)
+- **State Management**: React built-in useState/useReducer + Context API (no external libraries)
+- **Data Fetching**: Native fetch with custom hooks (no TanStack Query)
+- **Routing**: React Router v6 for client-side navigation
+- **Icons**: Lucide React for consistent iconography
+- **Animations**: CSS transitions and simple React state (no Framer Motion)
 - **Date/Time**: date-fns for date manipulation and formatting
-- **Notifications**: Svelte French Toast or custom toast components
-- **Virtual Scrolling**: svelte-virtual-list or custom virtual scrolling implementation
-- **Charts**: Chart.js with svelte-chartjs or D3.js with custom Svelte wrappers
+- **Notifications**: Simple custom toast component
+- **Virtual Scrolling**: Custom implementation or react-window if needed
+- **Charts**: Simple Chart.js integration for basic analytics
 
 ## Configuration
 
@@ -154,17 +154,17 @@ LOG_MAX_SIZE=10m
 - **Accessibility**: WCAG 2.1 AA compliance with proper contrast ratios
 
 #### Interactive Elements
-- **Smooth Animations**: Svelte transitions and custom motion utilities for state changes
+- **Smooth Animations**: CSS transitions and simple React state for state changes
 - **Hover States**: Subtle feedback for interactive elements
 - **Loading States**: Skeleton screens and progress indicators
 - **Error Handling**: Graceful error messages with retry options
 - **Keyboard Navigation**: Full keyboard accessibility support
 
 #### Performance Optimization
-- **Virtual Scrolling**: Handle thousands of messages efficiently with svelte-virtual-list
+- **Virtual Scrolling**: Custom implementation or react-window if needed for large datasets
 - **Lazy Loading**: Progressive loading of media and older messages
-- **Caching**: Intelligent caching with TanStack Query (Svelte Query)
-- **Debounced Search**: Optimized search with minimal API calls
+- **Caching**: Simple in-memory caching with custom hooks
+- **Debounced Search**: Optimized search with minimal API calls using custom debounce hook
 
 ### Dashboard Layout
 
