@@ -68,6 +68,20 @@ data/
 - **Validation**: zod for runtime type checking
 - **Monitoring**: prometheus metrics, health checks
 
+### Frontend Dependencies
+- **Framework**: React 18+ with TypeScript
+- **Build Tool**: Vite 6+ for fast development and builds
+- **Styling**: Tailwind CSS 3.4+ with Headless UI components
+- **State Management**: Zustand 5+ for lightweight state management
+- **Data Fetching**: TanStack Query (React Query) v5 for server state
+- **Routing**: React Router v7 for client-side navigation
+- **Icons**: Lucide React for consistent iconography
+- **Animations**: Framer Motion for smooth transitions
+- **Date/Time**: date-fns for date manipulation and formatting
+- **Notifications**: React Hot Toast for user feedback
+- **Virtual Scrolling**: @tanstack/react-virtual for performance
+- **Charts**: Recharts for analytics visualization
+
 ## Configuration
 
 ### Environment Variables
@@ -103,29 +117,128 @@ LOG_MAX_FILES=10
 LOG_MAX_SIZE=10m
 ```
 
-## Web Interface Features
+## Frontend Dashboard Specification
 
-### Dashboard
-- Real-time message feed with filtering
-- Chat statistics and analytics
-- Media gallery with thumbnails
-- Search functionality across all messages
-- Export capabilities (JSON, CSV)
+### Live Dashboard Features
+- **Real-time Message Feed**: Live updates using WebSocket/Server-Sent Events
+- **Message Audit Trail**: Clear visual indicators for message states (new, edited, deleted)
+- **Configurable Time Range**: View messages from last X days (user configurable)
+- **Advanced Filtering**: Filter by chat, message type, date range, sender
+- **Search & Export**: Full-text search with JSON/CSV export capabilities
+- **Responsive Design**: Mobile-first approach with desktop optimization
 
-### Security
-- Authentication with configurable credentials
-- Rate limiting and request validation
-- HTTPS support with SSL certificates
-- CORS configuration for secure access
+### Message State Visualization
+- **New Messages**: Clean display with timestamp and sender info
+- **Edited Messages**:
+  - Clear "EDITED" badge with edit timestamp
+  - Expandable diff view showing original vs current content
+  - Edit history timeline for multiple edits
+- **Deleted Messages**:
+  - "DELETED" badge with deletion timestamp
+  - Preserved original content with strikethrough styling
+  - Deletion reason if available from WhatsApp
+- **Reactions**: Emoji reactions displayed inline with message
+- **Replies**: Threaded view showing reply context
 
-### API Endpoints
+### UI/UX Design Principles
+
+#### Visual Design
+- **Dark/Light Theme**: System preference detection with manual toggle
+- **Color Coding**: Consistent color scheme for different message states
+  - New: Default theme colors
+  - Edited: Amber/yellow accent with subtle background
+  - Deleted: Red accent with muted background
+  - System: Blue accent for group events
+- **Typography**: Clear hierarchy using modern font stack
+- **Spacing**: Generous whitespace for readability
+- **Accessibility**: WCAG 2.1 AA compliance with proper contrast ratios
+
+#### Interactive Elements
+- **Smooth Animations**: Framer Motion for state transitions
+- **Hover States**: Subtle feedback for interactive elements
+- **Loading States**: Skeleton screens and progress indicators
+- **Error Handling**: Graceful error messages with retry options
+- **Keyboard Navigation**: Full keyboard accessibility support
+
+#### Performance Optimization
+- **Virtual Scrolling**: Handle thousands of messages efficiently
+- **Lazy Loading**: Progressive loading of media and older messages
+- **Caching**: Intelligent caching with TanStack Query
+- **Debounced Search**: Optimized search with minimal API calls
+
+### Dashboard Layout
+
+#### Header Section
+- **Logo & Title**: Silent Watcher branding
+- **Connection Status**: Real-time WhatsApp connection indicator
+- **Time Range Selector**: Dropdown for configurable day ranges (1, 7, 30, 90 days)
+- **Search Bar**: Global search with advanced filters
+- **Theme Toggle**: Dark/light mode switcher
+- **User Menu**: Settings, logout, help
+
+#### Sidebar Navigation
+- **Chat List**: Hierarchical list of all monitored chats
+  - Individual contacts with profile pictures
+  - Group chats with member counts
+  - Unread message indicators
+  - Last message preview
+- **Filter Panel**: Advanced filtering options
+  - Message type filters (text, media, system)
+  - Date range picker
+  - Sender selection
+  - Message state filters (all, edited, deleted)
+
+#### Main Content Area
+- **Message Timeline**: Chronological message display
+  - Chat bubbles with sender avatars
+  - Message state badges and timestamps
+  - Media thumbnails with lightbox view
+  - Expandable message details
+- **Message Details Panel**: Slide-out panel for detailed view
+  - Full message metadata
+  - Edit/deletion history
+  - Media information
+  - Technical details (message ID, encryption info)
+
+#### Footer Section
+- **Statistics Bar**: Real-time stats (total messages, active chats, storage used)
+- **Status Indicators**: Bot health, database status, last sync time
+
+### API Endpoints Enhancement
 ```
-GET /api/messages?chat=&days=&type=
+# Message Management
+GET /api/messages?chat=&days=&type=&state=&search=&limit=&offset=
+GET /api/messages/:id/history
+GET /api/messages/:id/media
+
+# Chat Management
 GET /api/chats
+GET /api/chats/:id/messages
+GET /api/chats/:id/participants
+
+# Media & Files
 GET /api/media/:id
-GET /api/stats
+GET /api/media/:id/thumbnail
+POST /api/export (JSON/CSV export)
+
+# Real-time Updates
+GET /api/events (Server-Sent Events)
+WS /api/websocket (WebSocket connection)
+
+# Analytics & Stats
+GET /api/stats/overview
+GET /api/stats/chats
+GET /api/stats/media
 GET /api/health
 ```
+
+### Security & Authentication
+- **JWT-based Authentication**: Secure token-based auth system
+- **Role-based Access**: Admin/viewer roles with different permissions
+- **Session Management**: Automatic logout and session refresh
+- **Rate Limiting**: API rate limiting with user feedback
+- **HTTPS Enforcement**: Secure connections in production
+- **CORS Configuration**: Proper cross-origin resource sharing setup
 
 ## Error Handling & Resilience
 
