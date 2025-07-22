@@ -89,7 +89,7 @@ data/
 # Bot Configuration
 BOT_NAME=silent-watcher
 PHONE_NUMBER=+1234567890
-USE_PAIRING_CODE=true
+USE_PAIRING_CODE=false
 AUTO_RECONNECT=true
 
 # Database
