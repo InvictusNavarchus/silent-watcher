@@ -66,7 +66,7 @@ data/
 
 ### Additional Dependencies
 - **Validation**: zod for runtime type checking
-- **Monitoring**: prometheus metrics, health checks
+- **Monitoring**: health checks
 
 ### Frontend Dependencies
 - **Framework**: React 19+ with TypeScript
