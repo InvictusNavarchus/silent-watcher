@@ -84,7 +84,7 @@ data/
 
 ## Configuration
 
-### Environment Variables
+### Environment Variables Examples (can be modified or extended if needed)
 ```env
 # Bot Configuration
 BOT_NAME=silent-watcher
