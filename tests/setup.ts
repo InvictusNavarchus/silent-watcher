@@ -28,6 +28,62 @@ afterAll(() => {
 // Global test timeout
 jest.setTimeout(30000);
 
+// Mock winston logger to prevent initialization issues
+jest.mock('winston', () => {
+  const mockFormat = jest.fn(() => jest.fn());
+  return {
+    default: {
+      createLogger: jest.fn(() => ({
+        info: jest.fn(),
+        error: jest.fn(),
+        warn: jest.fn(),
+        debug: jest.fn(),
+      })),
+      format: {
+        combine: mockFormat,
+        timestamp: mockFormat,
+        errors: mockFormat,
+        json: mockFormat,
+        printf: mockFormat,
+        colorize: mockFormat,
+      },
+      transports: {
+        Console: jest.fn(),
+        File: jest.fn(),
+      },
+    },
+    createLogger: jest.fn(() => ({
+      info: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+      debug: jest.fn(),
+    })),
+    format: {
+      combine: mockFormat,
+      timestamp: mockFormat,
+      errors: mockFormat,
+      json: mockFormat,
+      printf: mockFormat,
+      colorize: mockFormat,
+    },
+    transports: {
+      Console: jest.fn(),
+      File: jest.fn(),
+    },
+  };
+});
+
+// Mock the logger utility directly
+jest.mock('@/utils/logger.js', () => ({
+  logger: {
+    info: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn(),
+  },
+  logError: jest.fn(),
+}));
+
 // Mock external dependencies that shouldn't be called during tests
 jest.mock('@whiskeysockets/baileys', () => ({
   makeWASocket: jest.fn(),

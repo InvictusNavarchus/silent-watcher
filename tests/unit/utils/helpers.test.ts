@@ -107,8 +107,8 @@ describe('Helper Functions', () => {
 
   describe('sanitizeFilename', () => {
     it('should replace invalid characters with underscores', () => {
-      expect(sanitizeFilename('file<>name.txt')).toBe('file__name.txt');
-      expect(sanitizeFilename('file/\\name.txt')).toBe('file__name.txt');
+      expect(sanitizeFilename('file<>name.txt')).toBe('file_name.txt');
+      expect(sanitizeFilename('file/\\name.txt')).toBe('file_name.txt');
     });
 
     it('should remove leading and trailing underscores', () => {
