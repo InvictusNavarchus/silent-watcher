@@ -67,6 +67,8 @@ data/
 ### Additional Dependencies
 - **Validation**: zod for runtime type checking
 - **Monitoring**: health checks
+- **Testing**: jest, @types/jest, ts-jest for backend testing
+- **Frontend Testing**: @testing-library/react, @testing-library/jest-dom, @testing-library/user-event
 
 ### Frontend Dependencies
 - **Framework**: React 19+ with TypeScript
@@ -260,6 +262,16 @@ GET /api/health
 
 ## Code Quality Standards
 
+### Test-Driven Development
+- **Comprehensive Test Coverage**: Aim for 90%+ code coverage across all modules
+- **Unit Testing**: Test all business logic, services, and utility functions
+- **Integration Testing**: Test database operations, API endpoints, and external service integrations
+- **End-to-End Testing**: Test critical user workflows and WhatsApp message processing flows
+- **Test Framework**: Jest with TypeScript support for backend, React Testing Library for frontend
+- **Mocking Strategy**: Mock external dependencies (Baileys, file system, network calls)
+- **Test Organization**: Mirror source code structure in test directories
+- **Continuous Testing**: Run tests on every commit and before deployment
+
 ### Architecture
 - **Modular Design**: Clear separation of concerns with focused modules
 - **Simple Imports**: Direct ESM imports instead of dependency injection
@@ -277,6 +289,13 @@ src/
 ├── utils/          # Utility functions and helpers
 ├── config/         # Configuration management
 └── main.ts         # Application entry point
+
+tests/
+├── unit/           # Unit tests mirroring src/ structure
+├── integration/    # Integration tests for API and database
+├── e2e/           # End-to-end tests for critical workflows
+├── fixtures/      # Test data and mock files
+└── helpers/       # Test utilities and setup functions
 ```
 
 ### Module Responsibilities
