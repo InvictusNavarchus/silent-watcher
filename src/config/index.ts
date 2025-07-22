@@ -100,7 +100,7 @@ function parseConfig(): Config {
   };
 
   try {
-    const validatedConfig = configSchema.parse(rawConfig);
+    const validatedConfig = configSchema.parse(rawConfig) as Config;
     logger.info('Configuration loaded successfully');
     return validatedConfig;
   } catch (error) {
