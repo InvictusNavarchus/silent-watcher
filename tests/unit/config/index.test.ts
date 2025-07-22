@@ -38,7 +38,7 @@ describe('Configuration', () => {
       expect(config.media.downloadEnabled).toBe(true);
       expect(config.media.maxSizeMB).toBe(100);
       expect(config.media.compressionEnabled).toBe(true);
-      expect(config.logging.level).toBe('info');
+      expect(config.logging.level).toBe('error'); // Test environment uses error level
       expect(config.logging.maxFiles).toBe(10);
       expect(config.logging.maxSize).toBe('10m');
       expect(config.dataRetention.days).toBe(90);
@@ -70,7 +70,7 @@ describe('Configuration', () => {
       process.env.WEB_PASSWORD = 'password123';
 
       const { getConfig } = await import('@/config/index.js');
-      expect(() => getConfig()).toThrow('JWT_SECRET is required');
+      expect(() => getConfig()).toThrow('jwt.secret: Required');
     });
 
     it('should validate JWT secret length', async () => {
@@ -79,7 +79,7 @@ describe('Configuration', () => {
       process.env.WEB_PASSWORD = 'password123';
 
       const { getConfig } = await import('@/config/index.js');
-      expect(() => getConfig()).toThrow('JWT_SECRET must be at least 32 characters long');
+      expect(() => getConfig()).toThrow('String must contain at least 32 character(s)');
     });
 
     it('should validate web authentication credentials', async () => {

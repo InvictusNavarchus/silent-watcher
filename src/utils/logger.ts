@@ -2,31 +2,39 @@ import winston from 'winston';
 import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 
-// Ensure logs directory exists
-const logsDir = join(process.cwd(), 'data', 'logs');
-if (!existsSync(logsDir)) {
-  mkdirSync(logsDir, { recursive: true });
-}
+// Lazy logger initialization to avoid issues during testing
+let _logger: winston.Logger | null = null;
 
-// Custom log format
-const logFormat = winston.format.combine(
-  winston.format.timestamp({
-    format: 'YYYY-MM-DD HH:mm:ss'
-  }),
-  winston.format.errors({ stack: true }),
-  winston.format.json(),
-  winston.format.printf(({ timestamp, level, message, ...meta }) => {
-    const metaStr = Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : '';
-    return `${timestamp} [${level.toUpperCase()}] ${message}${metaStr}`;
-  })
-);
+function createLogger(): winston.Logger {
+  if (_logger) {
+    return _logger;
+  }
 
-// Create logger instance
-export const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
-  format: logFormat,
-  defaultMeta: { service: 'silent-watcher' },
-  transports: [
+  // Ensure logs directory exists
+  const logsDir = join(process.cwd(), 'data', 'logs');
+  if (!existsSync(logsDir)) {
+    mkdirSync(logsDir, { recursive: true });
+  }
+
+  // Custom log format
+  const logFormat = winston.format.combine(
+    winston.format.timestamp({
+      format: 'YYYY-MM-DD HH:mm:ss'
+    }),
+    winston.format.errors({ stack: true }),
+    winston.format.json(),
+    winston.format.printf(({ timestamp, level, message, ...meta }) => {
+      const metaStr = Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : '';
+      return `${timestamp} [${level.toUpperCase()}] ${message}${metaStr}`;
+    })
+  );
+
+  // Create logger instance
+  _logger = winston.createLogger({
+    level: process.env.LOG_LEVEL || 'info',
+    format: logFormat,
+    defaultMeta: { service: 'silent-watcher' },
+    transports: [
     // Console transport for development
     new winston.transports.Console({
       format: winston.format.combine(
@@ -79,6 +87,18 @@ export const logger = winston.createLogger({
     })
   ]
 });
+
+  return _logger;
+}
+
+// Create a proxy logger that lazily initializes the real logger
+export const logger = {
+  info: (message: string, meta?: any) => createLogger().info(message, meta),
+  error: (message: string, meta?: any) => createLogger().error(message, meta),
+  warn: (message: string, meta?: any) => createLogger().warn(message, meta),
+  debug: (message: string, meta?: any) => createLogger().debug(message, meta),
+  end: () => createLogger().end(),
+};
 
 // Add request logging helper
 export const logRequest = (req: { method: string; url: string; ip: string }, duration?: number): void => {
