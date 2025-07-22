@@ -18,6 +18,7 @@ export default {
     }]
   },
   moduleNameMapper: {
+    '^@/(.*)\.js$': '<rootDir>/src/$1.ts',
     '^@/(.*)$': '<rootDir>/src/$1'
   },
   collectCoverageFrom: [
