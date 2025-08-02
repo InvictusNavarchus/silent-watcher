@@ -5,6 +5,30 @@ import { existsSync, mkdirSync } from 'fs';
 // Lazy logger initialization to avoid issues during testing
 let _logger: winston.Logger | null = null;
 
+/**
+ * Parse log size string (e.g., "10m", "1g", "500k") to bytes
+ * @param sizeStr - Size string like "10m" or "1g"
+ * @returns Size in bytes
+ */
+function parseLogSize(sizeStr: string): number {
+  const units: Record<string, number> = {
+    'k': 1024,
+    'm': 1024 * 1024,
+    'g': 1024 * 1024 * 1024
+  };
+  
+  const match = sizeStr.toLowerCase().match(/^(\d+)([kmg]?)$/);
+  if (!match) {
+    throw new Error(`Invalid log size format: ${sizeStr}`);
+  }
+  
+  const [, numberStr, unit = ''] = match;
+  const number = parseInt(numberStr!, 10);
+  const multiplier = units[unit] || 1;
+  
+  return number * multiplier;
+}
+
 function createLogger(): winston.Logger {
   if (_logger) {
     return _logger;
@@ -15,6 +39,13 @@ function createLogger(): winston.Logger {
   if (!existsSync(logsDir)) {
     mkdirSync(logsDir, { recursive: true });
   }
+
+  // Parse configuration from environment variables
+  const logMaxSize = process.env.LOG_MAX_SIZE || '10m';
+  const logMaxFiles = process.env.LOG_MAX_FILES ? parseInt(process.env.LOG_MAX_FILES, 10) : 10;
+  
+  // Convert log size to bytes
+  const maxSizeBytes = parseLogSize(logMaxSize);
 
   // Custom log format
   const logFormat = winston.format.combine(
@@ -41,15 +72,15 @@ function createLogger(): winston.Logger {
       }),
       new winston.transports.File({
         filename: join(logsDir, 'app.log'),
-        maxsize: 10000000, // 10MB
-        maxFiles: 10,
+        maxsize: maxSizeBytes,
+        maxFiles: logMaxFiles,
         tailable: true
       }),
       new winston.transports.File({
         filename: join(logsDir, 'error.log'),
         level: 'error',
-        maxsize: 10000000, // 10MB
-        maxFiles: 10,
+        maxsize: maxSizeBytes,
+        maxFiles: logMaxFiles,
         tailable: true
       })
     ]
