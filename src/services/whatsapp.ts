@@ -49,7 +49,6 @@ export class WhatsAppService extends EventEmitter {
       
       this.socket = makeWASocket({
         auth: authState,
-        printQRInTerminal: !this.config.bot.usePairingCode,
         logger: {
           level: 'silent',
           trace: () => {},
