@@ -2,6 +2,8 @@ import { randomUUID } from 'crypto';
 import { createHash } from 'crypto';
 import { promisify } from 'util';
 import { exec } from 'child_process';
+import QRCode from 'qrcode';
+import qrTerminal from 'qrcode-terminal';
 
 const execAsync = promisify(exec);
 
@@ -304,4 +306,40 @@ export function normalizeJid(jid: string): string {
   
   // Assume it's a phone number if no @ symbol
   return `${jid}@s.whatsapp.net`;
+}
+
+/**
+ * Display QR code in terminal for WhatsApp authentication
+ */
+export function displayQRCode(qrString: string): void {
+  console.log('\n📱 Scan this QR code with WhatsApp:');
+  console.log('═'.repeat(50));
+  
+  // Display QR code in terminal using ASCII characters
+  qrTerminal.generate(qrString, { small: true }, (qrcode) => {
+    console.log(qrcode);
+  });
+  
+  console.log('═'.repeat(50));
+  console.log('👆 Point your WhatsApp camera at the QR code above\n');
+}
+
+/**
+ * Generate QR code as data URL (for web interface)
+ */
+export async function generateQRCodeDataURL(qrString: string): Promise<string> {
+  try {
+    const qrCodeDataURL = await QRCode.toDataURL(qrString, {
+      type: 'image/png',
+      width: 256,
+      margin: 2,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF'
+      }
+    });
+    return qrCodeDataURL;
+  } catch (error) {
+    throw new Error(`Failed to generate QR code: ${(error as Error).message}`);
+  }
 }

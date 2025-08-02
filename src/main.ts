@@ -7,6 +7,7 @@ import { WhatsAppService } from '@/services/whatsapp.js';
 import { MediaService } from '@/services/media.js';
 import { MessageHandler } from '@/handlers/message.js';
 import { WebServer } from '@/web/server.js';
+import { displayQRCode } from '@/utils/helpers.js';
 // import { getCurrentTimestamp, generateId } from '@/utils/helpers.js';
 import type { SystemEvent } from '@/types/index.js';
 import { SystemEventType, EventSeverity } from '@/types/index.js';
@@ -137,9 +138,7 @@ class SilentWatcherBot {
 
     this.whatsappService.on('qr-code', (qr: string) => {
       logger.info('QR Code generated for WhatsApp authentication');
-      console.log('\n📱 Scan this QR code with WhatsApp:');
-      console.log(qr);
-      console.log('\n');
+      displayQRCode(qr);
     });
 
     this.whatsappService.on('pairing-code', (code: string) => {
