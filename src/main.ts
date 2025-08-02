@@ -96,22 +96,38 @@ class SilentWatcherBot {
   private setupEventHandlers(): void {
     // Handle incoming messages
     this.whatsappService.on('message', async (message) => {
-      await this.messageHandler.processMessage(message);
+      try {
+        await this.messageHandler.processMessage(message);
+      } catch (error) {
+        logError(error as Error, { context: 'Message processing' });
+      }
     });
 
     // Handle message updates
     this.whatsappService.on('message-update', async (update) => {
-      await this.messageHandler.processMessageUpdate(update);
+      try {
+        await this.messageHandler.processMessageUpdate(update);
+      } catch (error) {
+        logError(error as Error, { context: 'Message update processing' });
+      }
     });
 
     // Handle message reactions
     this.whatsappService.on('message-reaction', async (reaction) => {
-      await this.messageHandler.processMessageReaction(reaction);
+      try {
+        await this.messageHandler.processMessageReaction(reaction);
+      } catch (error) {
+        logError(error as Error, { context: 'Message reaction processing' });
+      }
     });
 
     // Handle system events
     this.whatsappService.on('system-event', async (event: SystemEvent) => {
-      await this.logSystemEvent(event.eventType, event.description, event.severity, JSON.parse(event.metadata));
+      try {
+        await this.logSystemEvent(event.eventType, event.description, event.severity, JSON.parse(event.metadata));
+      } catch (error) {
+        logError(error as Error, { context: 'System event processing' });
+      }
     });
 
     // Handle connection events
@@ -133,26 +149,42 @@ class SilentWatcherBot {
 
     // Handle chat updates
     this.whatsappService.on('chat-update', async (chat) => {
-      logger.debug('Chat updated', { chatId: chat.id });
-      // TODO: Update chat in database
+      try {
+        logger.debug('Chat updated', { chatId: chat.id });
+        // TODO: Update chat in database
+      } catch (error) {
+        logError(error as Error, { context: 'Chat update processing' });
+      }
     });
 
     // Handle contact updates
     this.whatsappService.on('contact-update', async (contact) => {
-      logger.debug('Contact updated', { contactId: contact.id });
-      // TODO: Update contact in database
+      try {
+        logger.debug('Contact updated', { contactId: contact.id });
+        // TODO: Update contact in database
+      } catch (error) {
+        logError(error as Error, { context: 'Contact update processing' });
+      }
     });
 
     // Handle group updates
     this.whatsappService.on('group-update', async (group) => {
-      logger.debug('Group updated', { groupId: group.id });
-      // TODO: Update group in database
+      try {
+        logger.debug('Group updated', { groupId: group.id });
+        // TODO: Update group in database
+      } catch (error) {
+        logError(error as Error, { context: 'Group update processing' });
+      }
     });
 
     // Handle presence updates
     this.whatsappService.on('presence-update', async (presence) => {
-      logger.debug('Presence updated', { chatId: presence.id });
-      // TODO: Log presence update if needed
+      try {
+        logger.debug('Presence updated', { chatId: presence.id });
+        // TODO: Log presence update if needed
+      } catch (error) {
+        logError(error as Error, { context: 'Presence update processing' });
+      }
     });
   }
 
@@ -253,8 +285,13 @@ process.on('uncaughtException', (error) => {
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled promise rejection', { reason, promise });
-  process.exit(1);
+  logger.error('Unhandled promise rejection', { 
+    reason: reason instanceof Error ? reason.message : reason, 
+    stack: reason instanceof Error ? reason.stack : undefined,
+    promise: promise.toString()
+  });
+  // Don't exit immediately, let the bot continue running
+  // process.exit(1);
 });
 
 // Start the bot

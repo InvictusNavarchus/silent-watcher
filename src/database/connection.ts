@@ -70,15 +70,8 @@ export class DatabaseConnection {
       const schemaPath = join(__dirname, 'schema.sql');
       const schema = readFileSync(schemaPath, 'utf-8');
       
-      // Split schema into individual statements and execute
-      const statements = schema
-        .split(';')
-        .map(stmt => stmt.trim())
-        .filter(stmt => stmt.length > 0);
-
-      for (const statement of statements) {
-        this.db.exec(statement);
-      }
+      // Execute the entire schema at once
+      this.db.exec(schema);
 
       logger.info('Database tables created successfully');
     } catch (error) {

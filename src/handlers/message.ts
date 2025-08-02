@@ -1,5 +1,6 @@
 import type { WAMessage } from '@whiskeysockets/baileys';
-import { proto } from '@whiskeysockets/baileys';
+import * as Baileys from '@whiskeysockets/baileys';
+const { proto } = Baileys;
 import { DatabaseService } from '@/services/database.js';
 import { MediaService } from '@/services/media.js';
 import { logger, logError } from '@/utils/logger.js';
