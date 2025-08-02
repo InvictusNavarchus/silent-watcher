@@ -12,10 +12,10 @@ services:
     volumes:
       # Persistent data storage
       - ./data:/app/data
-      # Configuration
-      - ./.env:/app/.env:ro
       # Optional: Custom configuration
       - ./config:/app/config:ro
+    env_file:
+      - .env
     environment:
       - NODE_ENV=production
       - TZ=UTC
@@ -70,11 +70,29 @@ services:
       - ./backups:/backups
     command: |
       sh -c "
-        apk add --no-cache sqlite
-        mkdir -p /backups
-        sqlite3 /data/database/silent-watcher.db '.backup /backups/backup-$(date +%Y%m%d-%H%M%S).db'
-        find /backups -name '*.db' -mtime +7 -delete
-        echo 'Backup completed'
+        set -e
+        echo 'Starting backup process...'
+        
+        if ! apk add --no-cache sqlite; then
+          echo 'Error: Failed to install sqlite'
+          exit 1
+        fi
+        
+        if ! mkdir -p /backups; then
+          echo 'Error: Failed to create backup directory'
+          exit 1
+        fi
+        
+        if ! sqlite3 /data/database/silent-watcher.db '.backup /backups/backup-$(date +%Y%m%d-%H%M%S).db'; then
+          echo 'Error: Failed to create database backup'
+          exit 1
+        fi
+        
+        if ! find /backups -name '*.db' -mtime +7 -delete; then
+          echo 'Warning: Failed to clean up old backups'
+        fi
+        
+        echo 'Backup completed successfully'
       "
     profiles:
       - backup

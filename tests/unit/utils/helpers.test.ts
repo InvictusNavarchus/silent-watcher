@@ -3,6 +3,7 @@ import {
   generateId,
   generateHash,
   getCurrentTimestamp,
+  formatTimestamp,
   msToSeconds,
   secondsToMs,
   sleep,
@@ -53,6 +54,20 @@ describe('Helper Functions', () => {
       const timestamp = getCurrentTimestamp();
       expect(timestamp).toBeValidTimestamp();
       expect(typeof timestamp).toBe('number');
+    });
+  });
+
+  describe('formatTimestamp', () => {
+    it('should format timestamps correctly', () => {
+      const timestamp = 1640995200; // 2022-01-01 00:00:00 UTC
+      const formatted = formatTimestamp(timestamp);
+      expect(formatted).toBe('2022-01-01T00:00:00.000Z');
+    });
+
+    it('should handle different timestamps', () => {
+      const timestamp = 1672531200; // 2023-01-01 00:00:00 UTC
+      const formatted = formatTimestamp(timestamp);
+      expect(formatted).toBe('2023-01-01T00:00:00.000Z');
     });
   });
 

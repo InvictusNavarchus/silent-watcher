@@ -2,6 +2,35 @@ import winston from 'winston';
 import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 
+/**
+ * Parse log size string to bytes
+ */
+function parseLogSize(sizeStr: string, defaultSize: number = 10000000): number {
+  if (!sizeStr) return defaultSize;
+  
+  const str = sizeStr.toLowerCase().trim();
+  const match = str.match(/^(\d+(?:\.\d+)?)(m|mb|k|kb|g|gb)?$/);
+  
+  if (!match || !match[1]) return defaultSize;
+  
+  const value = parseFloat(match[1]);
+  const unit = match[2] || '';
+  
+  switch (unit) {
+    case 'k':
+    case 'kb':
+      return Math.floor(value * 1024);
+    case 'm':
+    case 'mb':
+      return Math.floor(value * 1024 * 1024);
+    case 'g':
+    case 'gb':
+      return Math.floor(value * 1024 * 1024 * 1024);
+    default:
+      return Math.floor(value);
+  }
+}
+
 // Lazy logger initialization to avoid issues during testing
 let _logger: winston.Logger | null = null;
 
@@ -28,65 +57,6 @@ function createLogger(): winston.Logger {
       return `${timestamp} [${level.toUpperCase()}] ${message}${metaStr}`;
     })
   );
-
-  // Create logger instance
-  _logger = winston.createLogger({
-    level: process.env.LOG_LEVEL || 'info',
-    format: logFormat,
-    defaultMeta: { service: 'silent-watcher' },
-    transports: [
-    // Console transport for development
-    new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.simple()
-      )
-    }),
-    
-    // File transport for all logs
-    new winston.transports.File({
-      filename: join(logsDir, 'app.log'),
-      maxsize: parseInt(process.env.LOG_MAX_SIZE?.replace('m', '000000') || '10000000'),
-      maxFiles: parseInt(process.env.LOG_MAX_FILES || '10'),
-      tailable: true
-    }),
-    
-    // Separate file for errors
-    new winston.transports.File({
-      filename: join(logsDir, 'error.log'),
-      level: 'error',
-      maxsize: parseInt(process.env.LOG_MAX_SIZE?.replace('m', '000000') || '10000000'),
-      maxFiles: parseInt(process.env.LOG_MAX_FILES || '10'),
-      tailable: true
-    }),
-    
-    // Audit log for important events
-    new winston.transports.File({
-      filename: join(logsDir, 'audit.log'),
-      level: 'info',
-      maxsize: parseInt(process.env.LOG_MAX_SIZE?.replace('m', '000000') || '10000000'),
-      maxFiles: parseInt(process.env.LOG_MAX_FILES || '10'),
-      tailable: true,
-      format: winston.format.combine(
-        winston.format.timestamp(),
-        winston.format.json()
-      )
-    })
-  ],
-  
-  // Handle uncaught exceptions and rejections
-  exceptionHandlers: [
-    new winston.transports.File({
-      filename: join(logsDir, 'exceptions.log')
-    })
-  ],
-  
-  rejectionHandlers: [
-    new winston.transports.File({
-      filename: join(logsDir, 'rejections.log')
-    })
-  ]
-});
 
   return _logger;
 }

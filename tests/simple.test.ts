@@ -70,43 +70,6 @@ describe('Simple Test Suite', () => {
     });
   });
 
-  describe('Utility functions', () => {
-    const formatTimestamp = (timestamp: number): string => {
-      return new Date(timestamp * 1000).toISOString();
-    };
-
-    const generateId = (): string => {
-      return Math.random().toString(36).substring(2, 15);
-    };
-
-    const isValidPhoneNumber = (phone: string): boolean => {
-      return /^\+\d{10,15}$/.test(phone);
-    };
-
-    it('should format timestamps correctly', () => {
-      const timestamp = 1640995200; // 2022-01-01 00:00:00 UTC
-      const formatted = formatTimestamp(timestamp);
-      expect(formatted).toBe('2022-01-01T00:00:00.000Z');
-    });
-
-    it('should generate unique IDs', () => {
-      const id1 = generateId();
-      const id2 = generateId();
-      
-      expect(id1).not.toBe(id2);
-      expect(id1.length).toBeGreaterThan(0);
-      expect(id2.length).toBeGreaterThan(0);
-    });
-
-    it('should validate phone numbers', () => {
-      expect(isValidPhoneNumber('+1234567890')).toBe(true);
-      expect(isValidPhoneNumber('+123456789012345')).toBe(true);
-      expect(isValidPhoneNumber('1234567890')).toBe(false);
-      expect(isValidPhoneNumber('+123')).toBe(false);
-      expect(isValidPhoneNumber('invalid')).toBe(false);
-    });
-  });
-
   describe('Mock testing', () => {
     it('should work with mocked functions', () => {
       const mockCallback = jest.fn();
@@ -146,7 +109,7 @@ describe('Simple Test Suite', () => {
       expect(process.env.NODE_ENV).toBeDefined();
       
       // Clean up
-      delete process.env.TEST_VAR;
+      process.env.TEST_VAR = undefined;
     });
 
     it('should handle different data types', () => {

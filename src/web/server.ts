@@ -3,7 +3,7 @@ import helmet from 'helmet';
 import { join } from 'path';
 import { existsSync } from 'fs';
 import { createServer } from 'http';
-import { WebSocketServer } from 'ws';
+import { WebSocketServer, WebSocket } from 'ws';
 import { logger, logRequest } from '@/utils/logger.js';
 import { config } from '@/config/index.js';
 import { corsMiddleware } from '@/web/middleware/cors.js';
@@ -12,6 +12,14 @@ import { createApiRouter } from '@/web/routes/api.js';
 import { createAuthRouter } from '@/web/routes/auth.js';
 import type { DatabaseService } from '@/services/database.js';
 import type { WhatsAppService } from '@/services/whatsapp.js';
+
+// WebSocket message interface
+interface WebSocketMessage {
+  type: string;
+  data?: unknown;
+  message?: string;
+  channel?: string;
+}
 
 export class WebServer {
   private app: express.Application;
@@ -226,7 +234,7 @@ export class WebServer {
   /**
    * Handle WebSocket messages
    */
-  private handleWebSocketMessage(ws: any, data: any): void {
+  private handleWebSocketMessage(ws: WebSocket, data: WebSocketMessage): void {
     switch (data.type) {
       case 'ping':
         ws.send(JSON.stringify({ type: 'pong' }));

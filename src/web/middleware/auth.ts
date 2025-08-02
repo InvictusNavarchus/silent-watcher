@@ -5,6 +5,19 @@ import { logger } from '@/utils/logger.js';
 import { config } from '@/config/index.js';
 import type { JWTPayload, AuthUser } from '@/types/index.js';
 
+// Cache for hashed password to avoid re-hashing on every login
+let cachedHashedPassword: string | null = null;
+
+/**
+ * Get or create cached hashed password
+ */
+async function getCachedHashedPassword(): Promise<string> {
+  if (!cachedHashedPassword && config.web.password) {
+    cachedHashedPassword = await bcrypt.hash(config.web.password, 10);
+  }
+  return cachedHashedPassword || '';
+}
+
 // Extend Express Request type to include user
 declare global {
   namespace Express {
@@ -34,10 +47,16 @@ export const authenticate = (req: Request, res: Response, next: NextFunction): v
     try {
       const decoded = jwt.verify(token, config.jwt.secret) as JWTPayload;
       
+      // Validate role is one of allowed values
+      const validRoles: ('admin' | 'viewer')[] = ['admin', 'viewer'];
+      const role = validRoles.includes(decoded.role as 'admin' | 'viewer') 
+        ? decoded.role as 'admin' | 'viewer' 
+        : 'viewer'; // Default to viewer for invalid roles
+      
       req.user = {
         id: decoded.userId,
         username: decoded.username,
-        role: decoded.role as 'admin' | 'viewer'
+        role
       };
       
       next();
@@ -105,7 +124,8 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }
 
     const isValidUsername = username === config.web.username;
-    const isValidPassword = await bcrypt.compare(password, await bcrypt.hash(config.web.password, 10));
+    const hashedPassword = await getCachedHashedPassword();
+    const isValidPassword = await bcrypt.compare(password, hashedPassword);
 
     if (!isValidUsername || !isValidPassword) {
       logger.warn('Failed login attempt', { username, ip: req.ip });

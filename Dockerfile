@@ -1,7 +1,7 @@
 # Multi-stage build for production optimization
 FROM node:22-alpine AS base
 
-# Install system dependencies
+# Install system dependencies and pnpm
 RUN apk add --no-cache \
     python3 \
     make \
@@ -16,24 +16,27 @@ RUN apk add --no-cache \
     libjpeg-turbo-dev \
     freetype-dev
 
+# Install pnpm globally
+RUN npm install -g pnpm
+
 # Set working directory
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
-COPY frontend/package*.json ./frontend/
+COPY package*.json pnpm-lock.yaml ./
+COPY frontend/package*.json frontend/pnpm-lock.yaml ./frontend/
 
 # Install dependencies
 FROM base AS deps
-RUN npm ci --only=production && npm cache clean --force
-RUN cd frontend && npm ci --only=production && npm cache clean --force
+RUN pnpm install --prod --frozen-lockfile
+RUN cd frontend && pnpm install --prod --frozen-lockfile
 
 # Build stage
 FROM base AS build
 COPY . .
-RUN npm ci
-RUN cd frontend && npm ci
-RUN npm run build:all
+RUN pnpm install --frozen-lockfile
+RUN cd frontend && pnpm install --frozen-lockfile
+RUN pnpm run build:all
 
 # Production stage
 FROM node:22-alpine AS production

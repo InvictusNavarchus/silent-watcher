@@ -31,7 +31,7 @@ Authenticate and receive a JWT token.
 {
   "success": true,
   "data": {
-    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "token": "YOUR_FAKE_JWT_TOKEN_EXAMPLE_HERE",
     "user": {
       "id": "admin",
       "username": "admin",
@@ -46,7 +46,7 @@ Authenticate and receive a JWT token.
 Include the JWT token in the Authorization header:
 
 ```
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Authorization: Bearer YOUR_FAKE_JWT_TOKEN_EXAMPLE_HERE
 ```
 
 ### Refresh Token
@@ -62,7 +62,7 @@ Refresh your JWT token.
 {
   "success": true,
   "data": {
-    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    "token": "YOUR_REFRESHED_FAKE_JWT_TOKEN_EXAMPLE_HERE"
   }
 }
 ```

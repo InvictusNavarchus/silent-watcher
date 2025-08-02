@@ -65,7 +65,7 @@ describe('Configuration', () => {
     });
 
     it('should validate JWT secret requirement', async () => {
-      delete process.env.JWT_SECRET;
+      process.env.JWT_SECRET = undefined;
       process.env.WEB_USERNAME = 'admin';
       process.env.WEB_PASSWORD = 'password123';
 
@@ -85,8 +85,8 @@ describe('Configuration', () => {
     it('should validate web authentication credentials', async () => {
       process.env.JWT_SECRET = 'test-secret-key-that-is-long-enough-for-validation';
       process.env.WEB_AUTH_ENABLED = 'true';
-      delete process.env.WEB_USERNAME;
-      delete process.env.WEB_PASSWORD;
+      process.env.WEB_USERNAME = undefined;
+      process.env.WEB_PASSWORD = undefined;
 
       const { getConfig } = await import('@/config/index.js');
       expect(() => getConfig()).toThrow('WEB_USERNAME and WEB_PASSWORD are required when web authentication is enabled');

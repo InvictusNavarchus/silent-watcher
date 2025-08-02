@@ -21,9 +21,11 @@ export function useApi<T>(
   });
 
   const fetchData = useCallback(async () => {
-    if (!enabled || !token) return;
+    if (!enabled || !token) return null;
 
     setState(prev => ({ ...prev, loading: true, error: null }));
+
+    const controller = new AbortController();
 
     try {
       const response = await fetch(url, {
@@ -31,12 +33,25 @@ export function useApi<T>(
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        signal: controller.signal,
       });
 
       if (response.status === 401) {
         // Token expired or invalid
         logout();
-        return;
+        return controller;
+      }
+
+      // Check if response status indicates an error
+      if (!response.ok) {
+        const errorMessage = `Request failed with status ${response.status}`;
+        setState({
+          data: null,
+          loading: false,
+          error: errorMessage,
+        });
+        onError?.(new Error(errorMessage));
+        return controller;
       }
 
       const result: ApiResponse<T> = await response.json();
@@ -58,6 +73,11 @@ export function useApi<T>(
         onError?.(new Error(errorMessage));
       }
     } catch (error) {
+      // Don't update state if request was aborted
+      if (error instanceof Error && error.name === 'AbortError') {
+        return controller;
+      }
+      
       const errorMessage = error instanceof Error ? error.message : 'Network error';
       setState({
         data: null,
@@ -66,18 +86,35 @@ export function useApi<T>(
       });
       onError?.(error instanceof Error ? error : new Error(errorMessage));
     }
+    
+    return controller;
   }, [url, enabled, token, logout, onSuccess, onError]);
 
   // Initial fetch
   useEffect(() => {
-    fetchData();
+    let controller: AbortController | null = null;
+    
+    const doFetch = async () => {
+      controller = await fetchData();
+    };
+    
+    doFetch();
+    
+    return () => {
+      if (controller) {
+        controller.abort();
+      }
+    };
   }, [fetchData]);
 
   // Refetch interval
   useEffect(() => {
     if (!refetchInterval || !enabled) return;
 
-    const interval = setInterval(fetchData, refetchInterval);
+    const interval = setInterval(() => {
+      fetchData();
+    }, refetchInterval);
+    
     return () => clearInterval(interval);
   }, [fetchData, refetchInterval, enabled]);
 
@@ -105,25 +142,42 @@ export function useApiMutation<TData, TVariables = unknown>(
 
   const mutate = useCallback(async (variables?: TVariables) => {
     if (!token) {
-      setState(prev => ({ ...prev, error: 'Not authenticated' }));
-      return;
+      const error = new Error('Not authenticated');
+      setState(prev => ({ ...prev, error: error.message }));
+      throw error;
     }
 
     setState(prev => ({ ...prev, loading: true, error: null }));
 
     try {
-      const response = await fetch(url, {
+      const requestInit: RequestInit = {
         method,
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: variables ? JSON.stringify(variables) : undefined,
-      });
+      };
+
+      if (variables) {
+        requestInit.body = JSON.stringify(variables);
+      }
+
+      const response = await fetch(url, requestInit);
 
       if (response.status === 401) {
         logout();
         return;
+      }
+
+      // Check if response status indicates an error
+      if (!response.ok) {
+        const errorMessage = `Request failed with status ${response.status}`;
+        setState({
+          data: null,
+          loading: false,
+          error: errorMessage,
+        });
+        throw new Error(errorMessage);
       }
 
       const result: ApiResponse<TData> = await response.json();

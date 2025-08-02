@@ -27,6 +27,13 @@ export function getCurrentTimestamp(): number {
 }
 
 /**
+ * Convert Unix timestamp to ISO string
+ */
+export function formatTimestamp(timestamp: number): string {
+  return new Date(timestamp * 1000).toISOString();
+}
+
+/**
  * Convert milliseconds to seconds
  */
 export function msToSeconds(ms: number): number {
@@ -223,27 +230,36 @@ export function throttle<T extends (...args: unknown[]) => unknown>(
  * Get system information
  */
 export async function getSystemInfo(): Promise<Record<string, unknown>> {
+  const baseInfo = {
+    uptime: process.uptime(),
+    nodeVersion: process.version,
+    platform: process.platform,
+    arch: process.arch
+  };
+
+  // Only run Linux-specific commands on Linux platform
+  if (process.platform !== 'linux') {
+    return {
+      ...baseInfo,
+      warning: 'Limited system info available on non-Linux platforms'
+    };
+  }
+
   try {
     const { stdout: memInfo } = await execAsync('free -m');
     const { stdout: diskInfo } = await execAsync('df -h /');
     const { stdout: cpuInfo } = await execAsync('cat /proc/loadavg');
     
     return {
+      ...baseInfo,
       memory: memInfo.trim(),
       disk: diskInfo.trim(),
-      cpu: cpuInfo.trim(),
-      uptime: process.uptime(),
-      nodeVersion: process.version,
-      platform: process.platform,
-      arch: process.arch
+      cpu: cpuInfo.trim()
     };
   } catch (error) {
     return {
-      uptime: process.uptime(),
-      nodeVersion: process.version,
-      platform: process.platform,
-      arch: process.arch,
-      error: 'Could not fetch system info'
+      ...baseInfo,
+      error: 'Could not fetch Linux system info'
     };
   }
 }
