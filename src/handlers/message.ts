@@ -41,6 +41,19 @@ export class MessageHandler {
         return;
       }
 
+      // Skip processing very old messages (older than 1 hour) during initial sync
+      const messageTime = waMessage.messageTimestamp ? Number(waMessage.messageTimestamp) : getCurrentTimestamp();
+      const oneHourAgo = getCurrentTimestamp() - (60 * 60);
+      
+      if (messageTime < oneHourAgo) {
+        logger.debug('Skipping old message from initial sync', { 
+          messageId: waMessage.key.id, 
+          messageTime,
+          age: getCurrentTimestamp() - messageTime 
+        });
+        return;
+      }
+
       const message = await this.convertWAMessageToMessage(waMessage);
       
       // Ensure chat and contact exist before creating message
@@ -50,10 +63,20 @@ export class MessageHandler {
         message.chatId.includes('@g.us')
       );
       
+      // Handle contact creation with proper name and phone extraction
+      let contactName: string | undefined;
+      let phoneNumber: string | undefined;
+      
+      if (message.senderId === 'me@bot.local') {
+        contactName = 'Silent Watcher Bot';
+      } else if (message.senderId.includes('@s.whatsapp.net')) {
+        phoneNumber = message.senderId.split('@')[0];
+      }
+      
       await this.databaseService.ensureContact(
         message.senderId,
-        undefined,
-        message.senderId.includes('@s.whatsapp.net') ? message.senderId.split('@')[0] : undefined
+        contactName,
+        phoneNumber
       );
       
       // Save message to database
@@ -199,9 +222,17 @@ export class MessageHandler {
   private async convertWAMessageToMessage(waMessage: WAMessage): Promise<Omit<Message, 'createdAt' | 'updatedAt'>> {
     const messageId = waMessage.key.id!;
     const chatId = normalizeJid(waMessage.key.remoteJid!);
-    const senderId = waMessage.key.fromMe 
-      ? 'me' 
-      : normalizeJid(waMessage.key.participant || waMessage.key.remoteJid!);
+    
+    // Fix sender ID handling - use a proper JID format for 'me' messages
+    let senderId: string;
+    if (waMessage.key.fromMe) {
+      // For messages from the bot, use a consistent sender ID
+      senderId = chatId.includes('@g.us') 
+        ? (waMessage.key.participant ? normalizeJid(waMessage.key.participant) : 'me@bot.local')
+        : 'me@bot.local';
+    } else {
+      senderId = normalizeJid(waMessage.key.participant || waMessage.key.remoteJid!);
+    }
 
     const messageType = this.getMessageType(waMessage);
     const content = this.extractMessageContent(waMessage);
