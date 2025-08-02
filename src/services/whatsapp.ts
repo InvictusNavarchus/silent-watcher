@@ -1,10 +1,17 @@
-import makeWASocket, {
+import { createRequire } from 'module';
+import type { 
   ConnectionState,
-  DisconnectReason,
-  useMultiFileAuthState,
-  WASocket,
-  BaileysEventMap
+  BaileysEventMap,
+  WASocket
 } from '@whiskeysockets/baileys';
+
+const require = createRequire(import.meta.url);
+const baileys = require('@whiskeysockets/baileys');
+const makeWASocket = baileys.default || baileys;
+const { 
+  DisconnectReason,
+  useMultiFileAuthState
+} = baileys;
 import { Boom } from '@hapi/boom';
 import { logger, logError } from '@/utils/logger.js';
 import { sleep, getCurrentTimestamp, generateId } from '@/utils/helpers.js';
@@ -59,7 +66,7 @@ export class WhatsAppService extends EventEmitter {
       this.setupEventHandlers(saveCreds);
       
       // Handle pairing code if enabled
-      if (this.config.bot.usePairingCode && this.config.bot.phoneNumber) {
+      if (this.config.bot.usePairingCode && this.config.bot.phoneNumber && this.socket) {
         const code = await this.socket.requestPairingCode(this.config.bot.phoneNumber);
         logger.info('Pairing code generated', { code });
         this.emit('pairing-code', code);

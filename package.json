@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "tsx watch src/main.ts",
-    "build": "tsc && tsc-alias",
+    "build": "tsc && tsc-alias && cp src/database/schema.sql dist/database/",
     "start": "node dist/main.js",
     "test": "jest",
     "test:watch": "jest --watch",
