@@ -54,14 +54,8 @@ export class MessageHandler {
         return;
       }
 
+      // Process message in a transaction to ensure atomicity
       const message = await this.convertWAMessageToMessage(waMessage);
-      
-      // Ensure chat and contact exist before creating message
-      await this.databaseService.ensureChat(
-        message.chatId, 
-        undefined, 
-        message.chatId.includes('@g.us')
-      );
       
       // Handle contact creation with proper name and phone extraction
       let contactName: string | undefined;
@@ -73,14 +67,13 @@ export class MessageHandler {
         phoneNumber = message.senderId.split('@')[0];
       }
       
-      await this.databaseService.ensureContact(
-        message.senderId,
+      // Create message with dependencies in a single transaction
+      await this.databaseService.createMessageWithDependencies(
+        message,
+        undefined, // chatName
         contactName,
         phoneNumber
       );
-      
-      // Save message to database
-      await this.databaseService.createMessage(message);
       
       // Download and process media if enabled
       if (message.mediaPath && this.config.media.downloadEnabled) {

@@ -46,6 +46,115 @@ export class DatabaseService {
     return this.connection.isConnected();
   }
 
+  /**
+   * Process message creation in a transaction
+   */
+  public async createMessageWithDependencies(
+    message: Omit<Message, 'createdAt' | 'updatedAt'>,
+    chatName?: string,
+    contactName?: string,
+    phoneNumber?: string
+  ): Promise<Message> {
+    if (!this.db) throw new Error('Database not initialized');
+    
+    return this.connection.transaction((db: Database) => {
+      // Ensure chat exists
+      const chatExistsStmt = db.prepare('SELECT id FROM chats WHERE id = ?');
+      const chatExists = chatExistsStmt.get(message.chatId);
+      
+      if (!chatExists) {
+        const now = getCurrentTimestamp();
+        const createChatStmt = db.prepare(`
+          INSERT INTO chats (id, name, is_group, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?)
+        `);
+        createChatStmt.run(
+          message.chatId, 
+          chatName || message.chatId, 
+          message.chatId.includes('@g.us') ? 1 : 0, 
+          now, 
+          now
+        );
+        logger.debug('Chat created in transaction', { chatId: message.chatId });
+      }
+      
+      // Ensure contact exists
+      const contactExistsStmt = db.prepare('SELECT id FROM contacts WHERE id = ?');
+      const contactExists = contactExistsStmt.get(message.senderId);
+      
+      if (!contactExists) {
+        const now = getCurrentTimestamp();
+        const createContactStmt = db.prepare(`
+          INSERT INTO contacts (id, name, phone_number, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?)
+        `);
+        createContactStmt.run(message.senderId, contactName || null, phoneNumber || null, now, now);
+        logger.debug('Contact created in transaction', { contactId: message.senderId });
+      }
+      
+      // Create message
+      const now = getCurrentTimestamp();
+      const fullMessage: Message = {
+        ...message,
+        createdAt: now,
+        updatedAt: now
+      };
+
+      const createMessageStmt = db.prepare(`
+        INSERT INTO messages (
+          id, chat_id, sender_id, content, message_type, timestamp, is_from_me,
+          quoted_message_id, media_path, media_type, media_mime_type, media_size,
+          is_forwarded, forwarded_from, is_ephemeral, ephemeral_duration,
+          is_view_once, reactions, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      createMessageStmt.run(
+        fullMessage.id,
+        fullMessage.chatId,
+        fullMessage.senderId,
+        fullMessage.content,
+        fullMessage.messageType,
+        fullMessage.timestamp,
+        fullMessage.isFromMe ? 1 : 0,
+        fullMessage.quotedMessageId,
+        fullMessage.mediaPath,
+        fullMessage.mediaType,
+        fullMessage.mediaMimeType,
+        fullMessage.mediaSize,
+        fullMessage.isForwarded ? 1 : 0,
+        fullMessage.forwardedFrom,
+        fullMessage.isEphemeral ? 1 : 0,
+        fullMessage.ephemeralDuration,
+        fullMessage.isViewOnce ? 1 : 0,
+        fullMessage.reactions,
+        fullMessage.createdAt,
+        fullMessage.updatedAt
+      );
+
+      // Create message event
+      const createEventStmt = db.prepare(`
+        INSERT INTO message_events (
+          id, message_id, event_type, old_content, new_content, timestamp, metadata, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      createEventStmt.run(
+        generateId(),
+        fullMessage.id,
+        MessageEventType.CREATED,
+        null,
+        null,
+        fullMessage.timestamp,
+        JSON.stringify({ chatId: fullMessage.chatId }),
+        now
+      );
+
+      logger.debug('Message created in transaction', { messageId: fullMessage.id, chatId: fullMessage.chatId });
+      return fullMessage;
+    });
+  }
+
   // Message operations
   public async createMessage(message: Omit<Message, 'createdAt' | 'updatedAt'>): Promise<Message> {
     if (!this.db) throw new Error('Database not initialized');
