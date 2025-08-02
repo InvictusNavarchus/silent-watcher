@@ -251,6 +251,58 @@ export class DatabaseService {
     }
   }
 
+  // Contact operations
+  public async ensureContact(contactId: string, name?: string, phoneNumber?: string): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      // Check if contact exists
+      const existsStmt = this.db.prepare('SELECT id FROM contacts WHERE id = ?');
+      const exists = existsStmt.get(contactId);
+
+      if (!exists) {
+        // Create new contact
+        const now = getCurrentTimestamp();
+        const insertStmt = this.db.prepare(`
+          INSERT INTO contacts (id, name, phone_number, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?)
+        `);
+
+        insertStmt.run(contactId, name || null, phoneNumber || null, now, now);
+        logger.debug('Contact created', { contactId, name });
+      }
+    } catch (error) {
+      logger.error('Failed to ensure contact', { error, contactId });
+      throw error;
+    }
+  }
+
+  // Chat operations
+  public async ensureChat(chatId: string, name?: string, isGroup: boolean = false): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      // Check if chat exists
+      const existsStmt = this.db.prepare('SELECT id FROM chats WHERE id = ?');
+      const exists = existsStmt.get(chatId);
+
+      if (!exists) {
+        // Create new chat
+        const now = getCurrentTimestamp();
+        const insertStmt = this.db.prepare(`
+          INSERT INTO chats (id, name, is_group, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?)
+        `);
+
+        insertStmt.run(chatId, name || chatId, isGroup ? 1 : 0, now, now);
+        logger.debug('Chat created', { chatId, name, isGroup });
+      }
+    } catch (error) {
+      logger.error('Failed to ensure chat', { error, chatId });
+      throw error;
+    }
+  }
+
   // Message Event operations
   public async createMessageEvent(event: Omit<MessageEvent, 'createdAt'>): Promise<MessageEvent> {
     if (!this.db) throw new Error('Database not initialized');

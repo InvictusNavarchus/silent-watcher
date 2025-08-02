@@ -43,6 +43,19 @@ export class MessageHandler {
 
       const message = await this.convertWAMessageToMessage(waMessage);
       
+      // Ensure chat and contact exist before creating message
+      await this.databaseService.ensureChat(
+        message.chatId, 
+        undefined, 
+        message.chatId.includes('@g.us')
+      );
+      
+      await this.databaseService.ensureContact(
+        message.senderId,
+        undefined,
+        message.senderId.includes('@s.whatsapp.net') ? message.senderId.split('@')[0] : undefined
+      );
+      
       // Save message to database
       await this.databaseService.createMessage(message);
       
