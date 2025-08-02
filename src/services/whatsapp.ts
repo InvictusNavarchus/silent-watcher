@@ -51,8 +51,22 @@ export class WhatsAppService extends EventEmitter {
         auth: authState,
         printQRInTerminal: !this.config.bot.usePairingCode,
         logger: {
-          level: 'silent', // Reduce Baileys logging noise
-          child: () => ({ level: 'silent' } as any)
+          level: 'silent',
+          trace: () => {},
+          debug: () => {},
+          info: () => {},
+          warn: () => {},
+          error: () => {},
+          fatal: () => {},
+          child: () => ({
+            level: 'silent',
+            trace: () => {},
+            debug: () => {},
+            info: () => {},
+            warn: () => {},
+            error: () => {},
+            fatal: () => {}
+          })
         } as any,
         browser: ['Silent Watcher', 'Chrome', '1.0.0'],
         generateHighQualityLinkPreview: true,
@@ -87,45 +101,83 @@ export class WhatsAppService extends EventEmitter {
 
     // Connection state updates
     this.socket.ev.on('connection.update', async (update) => {
-      await this.handleConnectionUpdate(update);
+      try {
+        await this.handleConnectionUpdate(update);
+      } catch (error) {
+        logError(error as Error, { context: 'Connection update handling' });
+      }
     });
 
     // Save credentials when updated
-    this.socket.ev.on('creds.update', saveCreds);
+    this.socket.ev.on('creds.update', async () => {
+      try {
+        await saveCreds();
+      } catch (error) {
+        logError(error as Error, { context: 'Credentials update handling' });
+      }
+    });
 
     // Handle incoming messages
     this.socket.ev.on('messages.upsert', async (messageUpdate) => {
-      await this.handleMessagesUpsert(messageUpdate);
+      try {
+        await this.handleMessagesUpsert(messageUpdate);
+      } catch (error) {
+        logError(error as Error, { context: 'Messages upsert handling' });
+      }
     });
 
     // Handle message updates (edits, deletions, reactions)
     this.socket.ev.on('messages.update', async (messageUpdates) => {
-      await this.handleMessagesUpdate(messageUpdates);
+      try {
+        await this.handleMessagesUpdate(messageUpdates);
+      } catch (error) {
+        logError(error as Error, { context: 'Messages update handling' });
+      }
     });
 
     // Handle message reactions
     this.socket.ev.on('messages.reaction', async (reactions) => {
-      await this.handleMessageReactions(reactions);
+      try {
+        await this.handleMessageReactions(reactions);
+      } catch (error) {
+        logError(error as Error, { context: 'Message reactions handling' });
+      }
     });
 
     // Handle chat updates
     this.socket.ev.on('chats.update', async (chatUpdates) => {
-      await this.handleChatsUpdate(chatUpdates);
+      try {
+        await this.handleChatsUpdate(chatUpdates);
+      } catch (error) {
+        logError(error as Error, { context: 'Chats update handling' });
+      }
     });
 
     // Handle contact updates
     this.socket.ev.on('contacts.update', async (contactUpdates) => {
-      await this.handleContactsUpdate(contactUpdates);
+      try {
+        await this.handleContactsUpdate(contactUpdates);
+      } catch (error) {
+        logError(error as Error, { context: 'Contacts update handling' });
+      }
     });
 
     // Handle group updates
     this.socket.ev.on('groups.update', async (groupUpdates) => {
-      await this.handleGroupsUpdate(groupUpdates);
+      try {
+        await this.handleGroupsUpdate(groupUpdates);
+      } catch (error) {
+        logError(error as Error, { context: 'Groups update handling' });
+      }
     });
 
     // Handle presence updates
     this.socket.ev.on('presence.update', async (presenceUpdate) => {
-      await this.handlePresenceUpdate(presenceUpdate);
+      try {
+        await this.handlePresenceUpdate(presenceUpdate);
+      } catch (error) {
+        logError(error as Error, { context: 'Presence update handling' });
+      }
     });
   }
 
