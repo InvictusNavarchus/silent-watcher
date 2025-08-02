@@ -37,6 +37,9 @@ export class DatabaseConnection {
       this.db.pragma('cache_size = 1000');
       this.db.pragma('temp_store = memory');
       this.db.pragma('mmap_size = 268435456'); // 256MB
+      
+      // Enable foreign key constraints
+      this.db.pragma('foreign_keys = ON');
 
       // Create tables from schema
       await this.createTables();

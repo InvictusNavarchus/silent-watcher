@@ -25,7 +25,10 @@ export class DatabaseService {
   public async initialize(): Promise<void> {
     await this.connection.initialize();
     this.db = this.connection.getDatabase();
-    logger.info('Database service initialized');
+    
+    // Verify foreign key constraints are enabled
+    const foreignKeysEnabled = this.db.pragma('foreign_keys', { simple: true });
+    logger.info('Database service initialized', { foreignKeysEnabled });
   }
 
   /**
@@ -269,16 +272,18 @@ export class DatabaseService {
         `);
 
         insertStmt.run(contactId, name || null, phoneNumber || null, now, now);
-        logger.debug('Contact created', { contactId, name });
+        logger.debug('Contact created', { contactId, name, phoneNumber });
+      } else {
+        logger.debug('Contact already exists', { contactId });
       }
     } catch (error) {
-      logger.error('Failed to ensure contact', { error, contactId });
+      logger.error('Failed to ensure contact', { error, contactId, name, phoneNumber });
       throw error;
     }
   }
 
   // Chat operations
-  public async ensureChat(chatId: string, name?: string, isGroup: boolean = false): Promise<void> {
+  public async ensureChat(chatId: string, name?: string, isGroup: boolean = false, participantCount?: number): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
 
     try {
@@ -290,15 +295,17 @@ export class DatabaseService {
         // Create new chat
         const now = getCurrentTimestamp();
         const insertStmt = this.db.prepare(`
-          INSERT INTO chats (id, name, is_group, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?)
+          INSERT INTO chats (id, name, is_group, participant_count, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?)
         `);
 
-        insertStmt.run(chatId, name || chatId, isGroup ? 1 : 0, now, now);
-        logger.debug('Chat created', { chatId, name, isGroup });
+        insertStmt.run(chatId, name || chatId, isGroup ? 1 : 0, participantCount || null, now, now);
+        logger.debug('Chat created', { chatId, name, isGroup, participantCount });
+      } else {
+        logger.debug('Chat already exists', { chatId });
       }
     } catch (error) {
-      logger.error('Failed to ensure chat', { error, chatId });
+      logger.error('Failed to ensure chat', { error, chatId, name, isGroup });
       throw error;
     }
   }
