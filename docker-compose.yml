@@ -1,0 +1,106 @@
+version: '3.8'
+
+services:
+  silent-watcher:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: silent-watcher
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      # Persistent data storage
+      - ./data:/app/data
+      # Optional: Custom configuration
+      - ./config:/app/config:ro
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - TZ=UTC
+    networks:
+      - silent-watcher-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+  # Optional: Nginx reverse proxy
+  nginx:
+    image: nginx:alpine
+    container_name: silent-watcher-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - silent-watcher
+    networks:
+      - silent-watcher-network
+    profiles:
+      - nginx
+
+  # Optional: Database backup service
+  backup:
+    image: alpine:latest
+    container_name: silent-watcher-backup
+    restart: "no"
+    volumes:
+      - ./data:/data:ro
+      - ./backups:/backups
+    command: |
+      sh -c "
+        set -e
+        echo 'Starting backup process...'
+        
+        if ! apk add --no-cache sqlite; then
+          echo 'Error: Failed to install sqlite'
+          exit 1
+        fi
+        
+        if ! mkdir -p /backups; then
+          echo 'Error: Failed to create backup directory'
+          exit 1
+        fi
+        
+        if ! sqlite3 /data/database/silent-watcher.db '.backup /backups/backup-$(date +%Y%m%d-%H%M%S).db'; then
+          echo 'Error: Failed to create database backup'
+          exit 1
+        fi
+        
+        if ! find /backups -name '*.db' -mtime +7 -delete; then
+          echo 'Warning: Failed to clean up old backups'
+        fi
+        
+        echo 'Backup completed successfully'
+      "
+    profiles:
+      - backup
+
+networks:
+  silent-watcher-network:
+    driver: bridge
+
+volumes:
+  silent-watcher-data:
+    driver: local
