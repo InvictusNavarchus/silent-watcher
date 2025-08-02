@@ -21,13 +21,13 @@ import {
   isGroupJid,
   isBroadcastJid,
   normalizeJid
-} from '@/utils/helpers.js';
+} from '../../../src/utils/helpers';
 
 describe('Helper Functions', () => {
   describe('generateId', () => {
     it('should generate a valid UUID', () => {
       const id = generateId();
-      expect(id).toBeValidUUID();
+      expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
     });
 
     it('should generate unique IDs', () => {
@@ -52,7 +52,7 @@ describe('Helper Functions', () => {
   describe('getCurrentTimestamp', () => {
     it('should return current Unix timestamp in seconds', () => {
       const timestamp = getCurrentTimestamp();
-      expect(timestamp).toBeValidTimestamp();
+      expect(timestamp).toBeGreaterThan(1000000000); // Valid timestamp after 2001
       expect(typeof timestamp).toBe('number');
     });
   });

@@ -2,35 +2,6 @@ import winston from 'winston';
 import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 
-/**
- * Parse log size string to bytes
- */
-function parseLogSize(sizeStr: string, defaultSize: number = 10000000): number {
-  if (!sizeStr) return defaultSize;
-  
-  const str = sizeStr.toLowerCase().trim();
-  const match = str.match(/^(\d+(?:\.\d+)?)(m|mb|k|kb|g|gb)?$/);
-  
-  if (!match || !match[1]) return defaultSize;
-  
-  const value = parseFloat(match[1]);
-  const unit = match[2] || '';
-  
-  switch (unit) {
-    case 'k':
-    case 'kb':
-      return Math.floor(value * 1024);
-    case 'm':
-    case 'mb':
-      return Math.floor(value * 1024 * 1024);
-    case 'g':
-    case 'gb':
-      return Math.floor(value * 1024 * 1024 * 1024);
-    default:
-      return Math.floor(value);
-  }
-}
-
 // Lazy logger initialization to avoid issues during testing
 let _logger: winston.Logger | null = null;
 
@@ -57,6 +28,32 @@ function createLogger(): winston.Logger {
       return `${timestamp} [${level.toUpperCase()}] ${message}${metaStr}`;
     })
   );
+
+  _logger = winston.createLogger({
+    level: process.env.LOG_LEVEL || 'info',
+    format: logFormat,
+    transports: [
+      new winston.transports.Console({
+        format: winston.format.combine(
+          winston.format.colorize(),
+          winston.format.simple()
+        )
+      }),
+      new winston.transports.File({
+        filename: join(logsDir, 'app.log'),
+        maxsize: 10000000, // 10MB
+        maxFiles: 10,
+        tailable: true
+      }),
+      new winston.transports.File({
+        filename: join(logsDir, 'error.log'),
+        level: 'error',
+        maxsize: 10000000, // 10MB
+        maxFiles: 10,
+        tailable: true
+      })
+    ]
+  });
 
   return _logger;
 }

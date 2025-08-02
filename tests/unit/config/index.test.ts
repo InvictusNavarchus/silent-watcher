@@ -21,7 +21,7 @@ describe('Configuration', () => {
       process.env.WEB_PASSWORD = 'password123';
 
       // Dynamic import to get fresh config
-      const { getConfig } = await import('@/config/index.js');
+      const { getConfig } = await import('../../../src/config/index');
       const config = getConfig();
 
       expect(config.bot.name).toBe('silent-watcher');
@@ -56,7 +56,7 @@ describe('Configuration', () => {
       process.env.WEB_USERNAME = 'admin';
       process.env.WEB_PASSWORD = 'password123';
 
-      const { getConfig } = await import('@/config/index.js');
+      const { getConfig } = await import('../../../src/config/index');
       const config = getConfig();
 
       expect(config.bot.name).toBe('custom-watcher');
@@ -69,7 +69,7 @@ describe('Configuration', () => {
       process.env.WEB_USERNAME = 'admin';
       process.env.WEB_PASSWORD = 'password123';
 
-      const { getConfig } = await import('@/config/index.js');
+      const { getConfig } = await import('../../../src/config/index');
       expect(() => getConfig()).toThrow('jwt.secret: Required');
     });
 
@@ -78,7 +78,7 @@ describe('Configuration', () => {
       process.env.WEB_USERNAME = 'admin';
       process.env.WEB_PASSWORD = 'password123';
 
-      const { getConfig } = await import('@/config/index.js');
+      const { getConfig } = await import('../../../src/config/index');
       expect(() => getConfig()).toThrow('String must contain at least 32 character(s)');
     });
 
@@ -88,7 +88,7 @@ describe('Configuration', () => {
       process.env.WEB_USERNAME = undefined;
       process.env.WEB_PASSWORD = undefined;
 
-      const { getConfig } = await import('@/config/index.js');
+      const { getConfig } = await import('../../../src/config/index');
       expect(() => getConfig()).toThrow('WEB_USERNAME and WEB_PASSWORD are required when web authentication is enabled');
     });
 
@@ -97,7 +97,7 @@ describe('Configuration', () => {
       process.env.WEB_USERNAME = 'admin';
       process.env.WEB_PASSWORD = 'short';
 
-      const { getConfig } = await import('@/config/index.js');
+      const { getConfig } = await import('../../../src/config/index');
       expect(() => getConfig()).toThrow('WEB_PASSWORD must be at least 8 characters long');
     });
 
@@ -111,7 +111,7 @@ describe('Configuration', () => {
       process.env.AUTO_CLEANUP_ENABLED = 'false';
       process.env.JWT_SECRET = 'test-secret-key-that-is-long-enough-for-validation';
 
-      const { getConfig } = await import('@/config/index.js');
+      const { getConfig } = await import('../../../src/config/index');
       const config = getConfig();
 
       expect(config.bot.usePairingCode).toBe(true);
@@ -129,7 +129,7 @@ describe('Configuration', () => {
       process.env.WEB_USERNAME = 'admin';
       process.env.WEB_PASSWORD = 'password123';
 
-      const { getConfig } = await import('@/config/index.js');
+      const { getConfig } = await import('../../../src/config/index');
       expect(() => getConfig()).toThrow('Configuration validation failed');
     });
   });
@@ -137,7 +137,7 @@ describe('Configuration', () => {
   describe('Environment helpers', () => {
     it('should detect development environment', async () => {
       process.env.NODE_ENV = 'development';
-      const { isDevelopment, isProduction, isTest } = await import('@/config/index.js');
+      const { isDevelopment, isProduction, isTest } = await import('../../../src/config/index');
       
       expect(isDevelopment()).toBe(true);
       expect(isProduction()).toBe(false);
@@ -146,7 +146,7 @@ describe('Configuration', () => {
 
     it('should detect production environment', async () => {
       process.env.NODE_ENV = 'production';
-      const { isDevelopment, isProduction, isTest } = await import('@/config/index.js');
+      const { isDevelopment, isProduction, isTest } = await import('../../../src/config/index');
       
       expect(isDevelopment()).toBe(false);
       expect(isProduction()).toBe(true);
@@ -155,7 +155,7 @@ describe('Configuration', () => {
 
     it('should detect test environment', async () => {
       process.env.NODE_ENV = 'test';
-      const { isDevelopment, isProduction, isTest } = await import('@/config/index.js');
+      const { isDevelopment, isProduction, isTest } = await import('../../../src/config/index');
       
       expect(isDevelopment()).toBe(false);
       expect(isProduction()).toBe(false);
