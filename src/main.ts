@@ -258,7 +258,10 @@ class SilentWatcherBot {
       // Close the logger last
       console.log('Closing logger...');
       try {
-        await import('@/utils/logger').then(({ closeLogger }) => closeLogger());
+        // Use a direct path relative to dist directory instead of path alias
+        const loggerPath = new URL('utils/logger.js', import.meta.url);
+        const { closeLogger } = await import(loggerPath.href);
+        await closeLogger();
       } catch (err) {
         console.error('Error closing logger:', err);
       }
