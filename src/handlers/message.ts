@@ -39,9 +39,9 @@ export class MessageHandler {
   public async processMessage(waMessage: WAMessage): Promise<void> {
     debugLogger.debug('Starting message processing', { waMessage });
     try {
-      if (!waMessage.key.id || !waMessage.key.remoteJid) {
-        logger.warn('Invalid message received - missing key data', { waMessage });
-        debugLogger.warn('Invalid message received - missing key data', { waMessage });
+      if (!waMessage.key.id || !waMessage.key.remoteJid || waMessage.message?.protocolMessage) {
+        logger.warn('Invalid or protocol message received, skipping', { waMessage });
+        debugLogger.warn('Invalid or protocol message received, skipping', { waMessage });
         return;
       }
 
@@ -123,7 +123,7 @@ export class MessageHandler {
       // Check if proto is available before using it
       if (proto?.WebMessageInfo?.StubType) {
         // Use the proper enum if available
-        if (update.update?.messageStubType === proto.WebMessageInfo.StubType.REVOKE) {
+        if (update.update?.messageStubType === proto.WebMessageInfo.StubType.REVOKE || (update.update?.message === null && update.update?.messageStubType === 1)) {
           await this.handleMessageDeletion(messageId, existingMessage);
           return;
         }
@@ -131,14 +131,14 @@ export class MessageHandler {
         logger.warn('proto.WebMessageInfo.StubType is not available, falling back to numeric stubType comparison', { messageId });
         // Fallback to direct comparison if proto.WebMessageInfo is not available
         // REVOKE stub type is 7
-        if (update.update?.messageStubType === 7) {
+        if (update.update?.messageStubType === 7 || (update.update?.message === null && update.update?.messageStubType === 1)) {
           await this.handleMessageDeletion(messageId, existingMessage);
           return;
         }
       }
 
       // Handle message edit
-      if (update.update?.message) {
+      if (update.update?.message?.editedMessage) {
         await this.handleMessageEdit(messageId, update.update.message, existingMessage);
         return;
       }
@@ -332,7 +332,7 @@ export class MessageHandler {
    * Extract text content from WhatsApp message
    */
   private extractMessageContent(waMessage: WAMessage): string {
-    const message = waMessage.message;
+    const message = waMessage.message?.editedMessage?.message || waMessage.message;
     if (!message) return '';
 
     if (message.conversation) return message.conversation;
