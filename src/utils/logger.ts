@@ -104,8 +104,34 @@ function createDebugLogger(): winston.Logger {
   const logMaxFiles = process.env.LOG_MAX_FILES ? parseInt(process.env.LOG_MAX_FILES, 10) : 20;
   const maxSizeBytes = parseLogSize(logMaxSize);
 
+  // Filter for noisy Baileys logs that we want to exclude
+  const noisyBaileysFilter = winston.format((info) => {
+    const message = info.message;
+
+    // Filter for logs like: "recv 151 bytes, total recv 151 bytes" or "fetched props"
+    if (typeof message === 'string') {
+      if (message.startsWith('recv ') || message === 'fetched props') {
+        return false;
+      }
+    }
+
+    // Type guard to safely check for the structure of the noisy "recv frame" log
+    const isRecvFrame = (
+      i: any
+    ): i is { '0': 'r'; '1': 'e'; message: { msg: string } } => {
+      return i && i['0'] === 'r' && i['1'] === 'e' && i.message && typeof i.message.msg === 'string';
+    };
+
+    if (isRecvFrame(info)) {
+      return false;
+    }
+
+    return info;
+  });
+
   // Custom format for debug logs to ensure all data is captured
   const debugLogFormat = winston.format.combine(
+    noisyBaileysFilter(),
     winston.format.timestamp(),
     winston.format.errors({ stack: true }),
     winston.format.json()
