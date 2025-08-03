@@ -60,7 +60,7 @@ export class MessageHandler {
 
       // Process message in a transaction to ensure atomicity
       const message = await this.convertWAMessageToMessage(waMessage);
-      debugLogger.debug('Converted WAMessage to internal message format', { message });
+      debugLogger.debug('Converted WAMessage to internal message format', message);
       
       // Handle contact creation with proper name and phone extraction
       let contactName: string | undefined;

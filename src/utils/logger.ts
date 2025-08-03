@@ -105,25 +105,29 @@ function createDebugLogger(): winston.Logger {
   const maxSizeBytes = parseLogSize(logMaxSize);
 
   // Filter for noisy Baileys logs that we want to exclude
+  // A more aggressive filter for noisy Baileys logs
   const noisyBaileysFilter = winston.format((info) => {
-    const message = info.message;
+    // This is a common pattern for the noisiest logs, which often have numeric keys
+    // representing different parts of the raw data frame.
+    const hasNumericKeys = Object.keys(info).some(key => !isNaN(parseInt(key, 10)));
 
-    // Filter for logs like: "recv 151 bytes, total recv 151 bytes" or "fetched props"
+    if (hasNumericKeys) {
+      return false;
+    }
+    
+    const message = info.message;
     if (typeof message === 'string') {
-      if (message.startsWith('recv ') || message === 'fetched props') {
+      // Filter for other known noisy messages
+      const noisySubstrings = ['recv ', 'fetched props', 'sendActiveReceipts', 'handled 0 offline messages'];
+      if (noisySubstrings.some(sub => message.includes(sub))) {
         return false;
       }
     }
 
-    // Type guard to safely check for the structure of the noisy "recv frame" log
-    const isRecvFrame = (
-      i: any
-    ): i is { '0': 'r'; '1': 'e'; message: { msg: string } } => {
-      return i && i['0'] === 'r' && i['1'] === 'e' && i.message && typeof i.message.msg === 'string';
-    };
-
-    if (isRecvFrame(info)) {
-      return false;
+    // Also filter logs that are just simple objects with a single 'message' key
+    // that contains an empty object, as seen in the logs provided.
+    if (typeof info.message === 'object' && info.message !== null && Object.keys(info.message).length === 0) {
+        return false;
     }
 
     return info;
