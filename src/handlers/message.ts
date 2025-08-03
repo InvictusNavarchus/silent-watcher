@@ -438,17 +438,31 @@ export class MessageHandler {
    */
   private async handleMessageDeletion(originalMessageId: string, existingMessage: Message, key: any): Promise<void> {
     const deletionMessage: Omit<Message, 'createdAt' | 'updatedAt'> = {
-      ...existingMessage,
       id: generateId(),
+      chatId: existingMessage.chatId,
+      senderId: existingMessage.senderId,
+      content: '[Message deleted]',
+      messageType: existingMessage.messageType,
+      timestamp: getCurrentTimestamp(),
+      isFromMe: existingMessage.isFromMe,
+      quotedMessageId: existingMessage.quotedMessageId,
       originalMessageId: originalMessageId,
+      mediaPath: existingMessage.mediaPath,
+      mediaType: existingMessage.mediaType,
+      mediaMimeType: existingMessage.mediaMimeType,
+      mediaSize: existingMessage.mediaSize,
+      isForwarded: existingMessage.isForwarded,
+      forwardedFrom: existingMessage.forwardedFrom,
+      isEphemeral: existingMessage.isEphemeral,
+      ephemeralDuration: existingMessage.ephemeralDuration,
+      isViewOnce: existingMessage.isViewOnce,
+      reactions: '[]',
       isDeleted: true,
       isEdited: false,
-      timestamp: getCurrentTimestamp(),
-      content: '[Message deleted]'
     };
 
-    await this.databaseService.createMessage(deletionMessage);
-    logger.info('Message deletion recorded as new entry', { originalMessageId, newId: key.id });
+    await this.databaseService.createMessageWithDependencies(deletionMessage);
+    logger.info('Message deletion recorded as new entry', { originalMessageId, newId: deletionMessage.id });
   }
 
   /**
@@ -459,17 +473,31 @@ export class MessageHandler {
 
     if (newContent !== existingMessage.content) {
       const editedMessage: Omit<Message, 'createdAt' | 'updatedAt'> = {
-        ...existingMessage,
         id: generateId(),
-        originalMessageId: originalMessageId,
+        chatId: existingMessage.chatId,
+        senderId: existingMessage.senderId,
         content: newContent,
+        messageType: existingMessage.messageType,
+        timestamp: getCurrentTimestamp(),
+        isFromMe: existingMessage.isFromMe,
+        quotedMessageId: existingMessage.quotedMessageId,
+        originalMessageId: originalMessageId,
+        mediaPath: existingMessage.mediaPath,
+        mediaType: existingMessage.mediaType,
+        mediaMimeType: existingMessage.mediaMimeType,
+        mediaSize: existingMessage.mediaSize,
+        isForwarded: existingMessage.isForwarded,
+        forwardedFrom: existingMessage.forwardedFrom,
+        isEphemeral: existingMessage.isEphemeral,
+        ephemeralDuration: existingMessage.ephemeralDuration,
+        isViewOnce: existingMessage.isViewOnce,
+        reactions: existingMessage.reactions,
         isEdited: true,
         isDeleted: false,
-        timestamp: getCurrentTimestamp()
       };
 
-      await this.databaseService.createMessage(editedMessage);
-      logger.info('Message edit recorded as new entry', { originalMessageId, newId: key.id });
+      await this.databaseService.createMessageWithDependencies(editedMessage);
+      logger.info('Message edit recorded as new entry', { originalMessageId, newId: editedMessage.id });
     }
   }
 
