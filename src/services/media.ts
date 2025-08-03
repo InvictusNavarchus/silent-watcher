@@ -10,12 +10,12 @@ import { MediaType } from '@/types/index.js';
 
 export class MediaService {
   private config: Config;
-  // private databaseService: DatabaseService;
+  private databaseService: DatabaseService;
   private mediaBasePath: string;
 
-  constructor(config: Config, _databaseService: DatabaseService) {
+  constructor(config: Config, databaseService: DatabaseService) {
     this.config = config;
-    // this.databaseService = databaseService;
+    this.databaseService = databaseService;
     this.mediaBasePath = join(process.cwd(), 'data', 'media');
   }
 
@@ -309,14 +309,7 @@ export class MediaService {
    * Create media record in database
    */
   private async createMediaRecord(media: Omit<Media, 'createdAt'>): Promise<void> {
-    // This would be implemented in the database service
-    // For now, we'll just log it
-    logger.debug('Media record created', {
-      mediaId: media.id,
-      messageId: media.messageId,
-      fileName: media.fileName,
-      size: formatBytes(media.size)
-    });
+    await this.databaseService.createMedia(media);
   }
 
   /**

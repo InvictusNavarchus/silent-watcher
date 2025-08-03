@@ -7,7 +7,8 @@ import type {
   MessageEvent,
   MessageQuery,
   PaginatedResponse,
-  Config
+  Config,
+  Media
 } from '@/types/index.js';
 import { MessageEventType } from '@/types/index.js';
 
@@ -473,6 +474,46 @@ export class DatabaseService {
       return rows.map(row => this.mapRowToMessageEvent(row));
     } catch (error) {
       logger.error('Failed to get message events', { error, messageId });
+      throw error;
+    }
+  }
+
+  public async createMedia(media: Omit<Media, 'createdAt'>): Promise<Media> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    const fullMedia: Media = {
+      ...media,
+      createdAt: getCurrentTimestamp()
+    };
+
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO media (
+          id, message_id, file_name, file_path, mime_type, size,
+          width, height, duration, thumbnail_path, is_compressed, original_size, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      stmt.run(
+        fullMedia.id,
+        fullMedia.messageId,
+        fullMedia.fileName,
+        fullMedia.filePath,
+        fullMedia.mimeType,
+        fullMedia.size,
+        fullMedia.width,
+        fullMedia.height,
+        fullMedia.duration,
+        fullMedia.thumbnailPath,
+        fullMedia.isCompressed ? 1 : 0,
+        fullMedia.originalSize,
+        fullMedia.createdAt
+      );
+
+      logger.debug('Media record created', { mediaId: fullMedia.id, messageId: fullMedia.messageId });
+      return fullMedia;
+    } catch (error) {
+      logger.error('Failed to create media record', { error, mediaId: media.id });
       throw error;
     }
   }
