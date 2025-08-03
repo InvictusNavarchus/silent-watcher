@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS messages (
     timestamp INTEGER NOT NULL,
     is_from_me BOOLEAN NOT NULL DEFAULT 0,
     quoted_message_id TEXT,
+    original_message_id TEXT,
     media_path TEXT,
     media_type TEXT CHECK (media_type IN ('image', 'video', 'audio', 'document', 'sticker')),
     media_mime_type TEXT,
@@ -23,12 +24,15 @@ CREATE TABLE IF NOT EXISTS messages (
     is_ephemeral BOOLEAN NOT NULL DEFAULT 0,
     ephemeral_duration INTEGER,
     is_view_once BOOLEAN NOT NULL DEFAULT 0,
+    is_edited BOOLEAN NOT NULL DEFAULT 0,
+    is_deleted BOOLEAN NOT NULL DEFAULT 0,
     reactions TEXT DEFAULT '[]', -- JSON array of reactions
     created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
     updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
     FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
     FOREIGN KEY (sender_id) REFERENCES contacts(id) ON DELETE CASCADE,
-    FOREIGN KEY (quoted_message_id) REFERENCES messages(id) ON DELETE SET NULL
+    FOREIGN KEY (quoted_message_id) REFERENCES messages(id) ON DELETE SET NULL,
+    FOREIGN KEY (original_message_id) REFERENCES messages(id) ON DELETE SET NULL
 );
 
 -- Message events table - Audit trail for message changes

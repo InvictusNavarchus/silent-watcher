@@ -10,6 +10,7 @@ export interface Message {
   timestamp: number;
   isFromMe: boolean;
   quotedMessageId?: string | undefined;
+  originalMessageId?: string | undefined;
   mediaPath?: string | undefined;
   mediaType?: MediaType | undefined;
   mediaMimeType?: string | undefined;
@@ -19,6 +20,8 @@ export interface Message {
   isEphemeral: boolean;
   ephemeralDuration?: number | undefined;
   isViewOnce: boolean;
+  isEdited: boolean;
+  isDeleted: boolean;
   reactions: string; // JSON string of reactions
   createdAt: number;
   updatedAt: number;

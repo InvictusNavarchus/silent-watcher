@@ -103,10 +103,10 @@ export class DatabaseService {
       const createMessageStmt = db.prepare(`
         INSERT INTO messages (
           id, chat_id, sender_id, content, message_type, timestamp, is_from_me,
-          quoted_message_id, media_path, media_type, media_mime_type, media_size,
+          quoted_message_id, original_message_id, media_path, media_type, media_mime_type, media_size,
           is_forwarded, forwarded_from, is_ephemeral, ephemeral_duration,
-          is_view_once, reactions, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          is_view_once, is_edited, is_deleted, reactions, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       createMessageStmt.run(
@@ -118,6 +118,7 @@ export class DatabaseService {
         fullMessage.timestamp,
         fullMessage.isFromMe ? 1 : 0,
         fullMessage.quotedMessageId,
+        fullMessage.originalMessageId,
         fullMessage.mediaPath,
         fullMessage.mediaType,
         fullMessage.mediaMimeType,
@@ -127,6 +128,8 @@ export class DatabaseService {
         fullMessage.isEphemeral ? 1 : 0,
         fullMessage.ephemeralDuration,
         fullMessage.isViewOnce ? 1 : 0,
+        fullMessage.isEdited ? 1 : 0,
+        fullMessage.isDeleted ? 1 : 0,
         fullMessage.reactions,
         fullMessage.createdAt,
         fullMessage.updatedAt
@@ -170,10 +173,10 @@ export class DatabaseService {
       const stmt = this.db.prepare(`
         INSERT INTO messages (
           id, chat_id, sender_id, content, message_type, timestamp, is_from_me,
-          quoted_message_id, media_path, media_type, media_mime_type, media_size,
+          quoted_message_id, original_message_id, media_path, media_type, media_mime_type, media_size,
           is_forwarded, forwarded_from, is_ephemeral, ephemeral_duration,
-          is_view_once, reactions, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          is_view_once, is_edited, is_deleted, reactions, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       stmt.run(
@@ -185,6 +188,7 @@ export class DatabaseService {
         fullMessage.timestamp,
         fullMessage.isFromMe ? 1 : 0,
         fullMessage.quotedMessageId,
+        fullMessage.originalMessageId,
         fullMessage.mediaPath,
         fullMessage.mediaType,
         fullMessage.mediaMimeType,
@@ -194,6 +198,8 @@ export class DatabaseService {
         fullMessage.isEphemeral ? 1 : 0,
         fullMessage.ephemeralDuration,
         fullMessage.isViewOnce ? 1 : 0,
+        fullMessage.isEdited ? 1 : 0,
+        fullMessage.isDeleted ? 1 : 0,
         fullMessage.reactions,
         fullMessage.createdAt,
         fullMessage.updatedAt
@@ -482,6 +488,7 @@ export class DatabaseService {
       timestamp: row.timestamp,
       isFromMe: Boolean(row.is_from_me),
       quotedMessageId: row.quoted_message_id,
+      originalMessageId: row.original_message_id,
       mediaPath: row.media_path,
       mediaType: row.media_type,
       mediaMimeType: row.media_mime_type,
@@ -491,6 +498,8 @@ export class DatabaseService {
       isEphemeral: Boolean(row.is_ephemeral),
       ephemeralDuration: row.ephemeral_duration,
       isViewOnce: Boolean(row.is_view_once),
+      isEdited: Boolean(row.is_edited),
+      isDeleted: Boolean(row.is_deleted),
       reactions: row.reactions || '[]',
       createdAt: row.created_at,
       updatedAt: row.updated_at

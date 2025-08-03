@@ -124,7 +124,7 @@ export class MessageHandler {
       if (proto?.WebMessageInfo?.StubType) {
         // Use the proper enum if available
         if (update.update?.messageStubType === proto.WebMessageInfo.StubType.REVOKE || (update.update?.message === null && update.update?.messageStubType === 1)) {
-          await this.handleMessageDeletion(messageId, existingMessage);
+          await this.handleMessageDeletion(messageId, existingMessage, update.key);
           return;
         }
       } else {
@@ -132,14 +132,14 @@ export class MessageHandler {
         // Fallback to direct comparison if proto.WebMessageInfo is not available
         // REVOKE stub type is 7
         if (update.update?.messageStubType === 7 || (update.update?.message === null && update.update?.messageStubType === 1)) {
-          await this.handleMessageDeletion(messageId, existingMessage);
+          await this.handleMessageDeletion(messageId, existingMessage, update.key);
           return;
         }
       }
 
       // Handle message edit
       if (update.update?.message?.editedMessage) {
-        await this.handleMessageEdit(messageId, update.update.message, existingMessage);
+        await this.handleMessageEdit(messageId, update.update.message, existingMessage, update.key);
         return;
       }
 
@@ -303,7 +303,9 @@ export class MessageHandler {
       isEphemeral,
       ephemeralDuration: ephemeralDuration ?? undefined,
       isViewOnce,
-      reactions: '[]'
+      reactions: '[]',
+      isEdited: false,
+      isDeleted: false
     };
   }
 
@@ -434,35 +436,40 @@ export class MessageHandler {
   /**
    * Handle message deletion
    */
-  private async handleMessageDeletion(messageId: string, existingMessage: Message): Promise<void> {
-    // Create deletion event
-    await this.databaseService.createMessageEvent({
-      id: generateId(),
-      messageId,
-      eventType: MessageEventType.DELETED,
-      oldContent: existingMessage.content,
+  private async handleMessageDeletion(originalMessageId: string, existingMessage: Message, key: any): Promise<void> {
+    const deletionMessage: Omit<Message, 'createdAt' | 'updatedAt'> = {
+      ...existingMessage,
+      id: key.id,
+      originalMessageId: originalMessageId,
+      isDeleted: true,
+      isEdited: false,
       timestamp: getCurrentTimestamp(),
-      metadata: JSON.stringify({ chatId: existingMessage.chatId })
-    });
+      content: '[Message deleted]'
+    };
 
-    // Note: We keep the message in database for audit purposes
-    // but mark it as deleted in the event log
-    logger.info('Message deletion recorded', { messageId });
+    await this.databaseService.createMessage(deletionMessage);
+    logger.info('Message deletion recorded as new entry', { originalMessageId, newId: key.id });
   }
 
   /**
    * Handle message edit
    */
-  private async handleMessageEdit(messageId: string, newMessage: any, existingMessage: Message): Promise<void> {
+  private async handleMessageEdit(originalMessageId: string, newMessage: any, existingMessage: Message, key: any): Promise<void> {
     const newContent = this.extractMessageContent({ message: newMessage } as WAMessage);
-    
-    if (newContent !== existingMessage.content) {
-      // Update message content
-      await this.databaseService.updateMessage(messageId, {
-        content: newContent
-      });
 
-      logger.info('Message edit recorded', { messageId, oldLength: existingMessage.content.length, newLength: newContent.length });
+    if (newContent !== existingMessage.content) {
+      const editedMessage: Omit<Message, 'createdAt' | 'updatedAt'> = {
+        ...existingMessage,
+        id: key.id,
+        originalMessageId: originalMessageId,
+        content: newContent,
+        isEdited: true,
+        isDeleted: false,
+        timestamp: getCurrentTimestamp()
+      };
+
+      await this.databaseService.createMessage(editedMessage);
+      logger.info('Message edit recorded as new entry', { originalMessageId, newId: key.id });
     }
   }
 
