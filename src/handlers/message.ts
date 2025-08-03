@@ -5,7 +5,7 @@ const baileys = require('@whiskeysockets/baileys');
 const { proto } = baileys;
 import { DatabaseService } from '@/services/database.js';
 import { MediaService } from '@/services/media.js';
-import { logger, logError } from '@/utils/logger.js';
+import { logger, logError, debugLogger } from '@/utils/logger.js';
 import {
   generateId,
   getCurrentTimestamp,
@@ -37,9 +37,11 @@ export class MessageHandler {
    * Process incoming WhatsApp message
    */
   public async processMessage(waMessage: WAMessage): Promise<void> {
+    debugLogger.debug('Starting message processing', { waMessage });
     try {
       if (!waMessage.key.id || !waMessage.key.remoteJid) {
-        logger.warn('Invalid message received - missing key data');
+        logger.warn('Invalid message received - missing key data', { waMessage });
+        debugLogger.warn('Invalid message received - missing key data', { waMessage });
         return;
       }
 
@@ -48,16 +50,17 @@ export class MessageHandler {
       const oneHourAgo = getCurrentTimestamp() - (60 * 60);
       
       if (messageTime < oneHourAgo) {
-        logger.debug('Skipping old message from initial sync', { 
-          messageId: waMessage.key.id, 
+        debugLogger.debug('Skipping old message from initial sync', {
+          messageId: waMessage.key.id,
           messageTime,
-          age: getCurrentTimestamp() - messageTime 
+          age: getCurrentTimestamp() - messageTime
         });
         return;
       }
 
       // Process message in a transaction to ensure atomicity
       const message = await this.convertWAMessageToMessage(waMessage);
+      debugLogger.debug('Converted WAMessage to internal message format', message);
       
       // Handle contact creation with proper name and phone extraction
       let contactName: string | undefined;
@@ -76,14 +79,17 @@ export class MessageHandler {
         contactName,
         phoneNumber
       );
+      debugLogger.debug('Message and dependencies created in database', { messageId: message.id });
       
       // Download and process media if enabled
       if (message.mediaPath && this.config.media.downloadEnabled) {
+        debugLogger.debug('Processing message media', { messageId: message.id });
         await this.mediaService.processMessageMedia(waMessage, message as Message);
+        debugLogger.debug('Message media processed', { messageId: message.id });
       }
 
-      logger.debug('Message processed successfully', { 
-        messageId: message.id, 
+      debugLogger.debug('Message processed successfully', {
+        messageId: message.id,
         chatId: message.chatId,
         type: message.messageType
       });
@@ -101,6 +107,7 @@ export class MessageHandler {
    * Process message update (edit/delete)
    */
   public async processMessageUpdate(update: any): Promise<void> {
+    debugLogger.debug('Processing message update', { update });
     try {
       const messageId = update.key.id;
       if (!messageId) return;
@@ -108,6 +115,7 @@ export class MessageHandler {
       const existingMessage = await this.databaseService.getMessageById(messageId);
       if (!existingMessage) {
         logger.warn('Message update received for unknown message', { messageId });
+        debugLogger.warn('Message update for unknown message', { messageId, update });
         return;
       }
 
@@ -149,6 +157,7 @@ export class MessageHandler {
    * Process message reaction
    */
   public async processMessageReaction(reaction: any): Promise<void> {
+    debugLogger.debug('Processing message reaction', { reaction });
     try {
       const messageId = reaction.key.id;
       if (!messageId) return;
@@ -156,6 +165,7 @@ export class MessageHandler {
       const existingMessage = await this.databaseService.getMessageById(messageId);
       if (!existingMessage) {
         logger.warn('Reaction received for unknown message', { messageId });
+        debugLogger.warn('Reaction for unknown message', { messageId, reaction });
         return;
       }
 

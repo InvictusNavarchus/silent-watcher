@@ -4,6 +4,7 @@ import { existsSync, mkdirSync } from 'fs';
 
 // Lazy logger initialization to avoid issues during testing
 let _logger: winston.Logger | null = null;
+let _debugLogger: winston.Logger | null = null;
 
 /**
  * Parse log size string (e.g., "10m", "1g", "500k") to bytes
@@ -89,6 +90,113 @@ function createLogger(): winston.Logger {
   return _logger;
 }
 
+function createDebugLogger(): winston.Logger {
+  if (_debugLogger) {
+    return _debugLogger;
+  }
+
+  const logsDir = join(process.cwd(), 'data', 'logs');
+  if (!existsSync(logsDir)) {
+    mkdirSync(logsDir, { recursive: true });
+  }
+
+  const logMaxSize = process.env.LOG_MAX_SIZE || '50m'; // Larger size for debug logs
+  const logMaxFiles = process.env.LOG_MAX_FILES ? parseInt(process.env.LOG_MAX_FILES, 10) : 20;
+  const maxSizeBytes = parseLogSize(logMaxSize);
+
+  // Filter for noisy Baileys logs that we want to exclude
+  // A more aggressive filter for noisy Baileys logs
+  const noisyBaileysFilter = winston.format((info) => {
+    // 1. Filter by top-level numeric keys (a strong indicator of raw frame data)
+    const hasNumericKeys = Object.keys(info).some(key => !isNaN(parseInt(key, 10)));
+    if (hasNumericKeys) {
+      return false;
+    }
+
+    const message = info.message;
+
+    // 2. Filter by known noisy strings
+    if (typeof message === 'string') {
+      const noisySubstrings = [
+        'recv ',
+        'fetched props',
+        'sendActiveReceipts',
+        'handled 0 offline messages',
+        'flushed events for initial buffer',
+        'opened connection to WA',
+        'pre-keys found on server',
+      ];
+      if (noisySubstrings.some(sub => message.includes(sub))) {
+        return false;
+      }
+    }
+
+    // 3. Filter by known noisy object structures in the 'message' property
+    if (typeof message === 'object' && message !== null) {
+      // Filter empty message objects: { message: {} }
+      if (Object.keys(message).length === 0) {
+        return false;
+      }
+      // Filter specific noisy structures from connection logic
+      const noisyKeys = ['node', 'recv', 'attrs', 'handshake', 'helloMsg'];
+      if (noisyKeys.some(key => key in message)) {
+        return false;
+      }
+    }
+
+    return info;
+  });
+
+  // Custom format for debug logs to ensure all data is captured
+  const debugLogFormat = winston.format.combine(
+    noisyBaileysFilter(),
+    winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
+    winston.format.json()
+  );
+
+  // Format for the human-readable, prettified log file
+  const prettyLogFormat = winston.format.combine(
+    noisyBaileysFilter(),
+    winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+    winston.format.errors({ stack: true }),
+    winston.format.printf(({ timestamp, level, message, ...meta }) => {
+      // The 'message' can be an object, so we need to handle it properly
+      const msg = typeof message === 'object' ? JSON.stringify(message, null, 2) : message;
+      
+      // The rest of the metadata
+      const metaStr = Object.keys(meta).length > 0 ? JSON.stringify(meta, null, 2) : '';
+
+      return `[${timestamp}] [${level.toUpperCase()}]\n${msg}\n${metaStr}\n${'-'.repeat(50)}\n`;
+    })
+  );
+
+  _debugLogger = winston.createLogger({
+    level: 'debug',
+    transports: [
+      // Transport for the structured, machine-readable JSON log
+      new winston.transports.File({
+        filename: join(logsDir, 'debug.log'),
+        format: debugLogFormat,
+        maxsize: maxSizeBytes,
+        maxFiles: logMaxFiles,
+        tailable: true,
+      }),
+      // Transport for the human-readable, prettified log
+      new winston.transports.File({
+        filename: join(logsDir, 'debug-prettified.log'),
+        format: prettyLogFormat,
+        maxsize: maxSizeBytes,
+        maxFiles: logMaxFiles,
+        tailable: true,
+      }),
+    ],
+    exitOnError: false, // Prevent exit on error
+  });
+
+  return _debugLogger;
+}
+
 // Create a proxy logger that lazily initializes the real logger
 export const logger = {
   info: (message: string, meta?: any) => createLogger().info(message, meta),
@@ -96,6 +204,17 @@ export const logger = {
   warn: (message: string, meta?: any) => createLogger().warn(message, meta),
   debug: (message: string, meta?: any) => createLogger().debug(message, meta),
   end: () => createLogger().end(),
+};
+
+// Create a dedicated, lazily-initialized logger for detailed debug information
+export const debugLogger = {
+  trace: (message: string, meta?: any) => createDebugLogger().debug(message, { ...meta, level: 'trace' }),
+  debug: (message: string, meta?: any) => createDebugLogger().debug(message, meta),
+  info: (message: string, meta?: any) => createDebugLogger().info(message, meta),
+  warn: (message: string, meta?: any) => createDebugLogger().warn(message, meta),
+  error: (message: string, meta?: any) => createDebugLogger().error(message, meta),
+  fatal: (message: string, meta?: any) => createDebugLogger().error(message, { ...meta, level: 'fatal' }),
+  child: () => debugLogger, // Return the same logger for child instances
 };
 
 // Add request logging helper
@@ -147,27 +266,32 @@ export const logError = (error: Error, context?: Record<string, unknown>): Promi
  * Close all logger transports
  */
 export function closeLogger(): Promise<void> {
-  if (!_logger) {
+  if (!_logger && !_debugLogger) {
     return Promise.resolve();
   }
-  
+
   return new Promise((resolve) => {
-    const transports = _logger?.transports || [];
+    const mainTransports = _logger?.transports || [];
+    const debugTransports = _debugLogger?.transports || [];
+    const allTransports = [...mainTransports, ...debugTransports];
     let closedTransports = 0;
-    
-    if (transports.length === 0) {
+
+    if (allTransports.length === 0) {
+      _logger = null;
+      _debugLogger = null;
       return resolve();
     }
-    
+
     const handleClose = () => {
       closedTransports++;
-      if (closedTransports >= transports.length) {
+      if (closedTransports >= allTransports.length) {
         _logger = null;
+        _debugLogger = null;
         resolve();
       }
     };
-    
-    for (const transport of transports) {
+
+    for (const transport of allTransports) {
       if (transport.close) {
         transport.close();
       }
