@@ -155,12 +155,37 @@ function createDebugLogger(): winston.Logger {
     winston.format.json()
   );
 
+  // Format for the human-readable, prettified log file
+  const prettyLogFormat = winston.format.combine(
+    noisyBaileysFilter(),
+    winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+    winston.format.errors({ stack: true }),
+    winston.format.printf(({ timestamp, level, message, ...meta }) => {
+      // The 'message' can be an object, so we need to handle it properly
+      const msg = typeof message === 'object' ? JSON.stringify(message, null, 2) : message;
+      
+      // The rest of the metadata
+      const metaStr = Object.keys(meta).length > 0 ? JSON.stringify(meta, null, 2) : '';
+
+      return `[${timestamp}] [${level.toUpperCase()}]\n${msg}\n${metaStr}\n${'-'.repeat(50)}\n`;
+    })
+  );
+
   _debugLogger = winston.createLogger({
     level: 'debug',
-    format: debugLogFormat,
     transports: [
+      // Transport for the structured, machine-readable JSON log
       new winston.transports.File({
         filename: join(logsDir, 'debug.log'),
+        format: debugLogFormat,
+        maxsize: maxSizeBytes,
+        maxFiles: logMaxFiles,
+        tailable: true,
+      }),
+      // Transport for the human-readable, prettified log
+      new winston.transports.File({
+        filename: join(logsDir, 'debug-prettified.log'),
+        format: prettyLogFormat,
         maxsize: maxSizeBytes,
         maxFiles: logMaxFiles,
         tailable: true,
