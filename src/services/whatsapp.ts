@@ -27,6 +27,7 @@ export class WhatsAppService extends EventEmitter {
   private maxReconnectAttempts = 10;
   private isShuttingDown = false;
   private isConnecting = false; // Add connection lock
+  private retryTimer: NodeJS.Timeout | null = null; // Track retry timer
 
   constructor(config: Config) {
     super();
@@ -279,7 +280,13 @@ export class WhatsAppService extends EventEmitter {
       
       // If initialization fails, try again after a longer delay
       if (this.reconnectAttempts < this.maxReconnectAttempts) {
-        setTimeout(() => this.handleReconnection(lastDisconnect), 5000);
+        // Clear any existing retry timer
+        if (this.retryTimer) {
+          clearTimeout(this.retryTimer);
+          this.retryTimer = null;
+        }
+        // Set new retry timer
+        this.retryTimer = setTimeout(() => this.handleReconnection(lastDisconnect), 5000);
       }
     }
   }
@@ -465,6 +472,12 @@ export class WhatsAppService extends EventEmitter {
    */
   public async shutdown(): Promise<void> {
     this.isShuttingDown = true;
+    
+    // Clear any pending retry timers
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
     
     if (this.socket) {
       logger.info('Shutting down WhatsApp service');
