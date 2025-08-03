@@ -439,7 +439,7 @@ export class MessageHandler {
   private async handleMessageDeletion(originalMessageId: string, existingMessage: Message, key: any): Promise<void> {
     const deletionMessage: Omit<Message, 'createdAt' | 'updatedAt'> = {
       ...existingMessage,
-      id: key.id,
+      id: generateId(),
       originalMessageId: originalMessageId,
       isDeleted: true,
       isEdited: false,
@@ -460,7 +460,7 @@ export class MessageHandler {
     if (newContent !== existingMessage.content) {
       const editedMessage: Omit<Message, 'createdAt' | 'updatedAt'> = {
         ...existingMessage,
-        id: key.id,
+        id: generateId(),
         originalMessageId: originalMessageId,
         content: newContent,
         isEdited: true,
