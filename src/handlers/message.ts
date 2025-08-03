@@ -303,7 +303,7 @@ export class MessageHandler {
     let senderId: string;
     if (waMessage.key.fromMe) {
       // For messages from the bot, use a consistent sender ID
-      senderId = chatId.includes('@g.us') 
+      senderId = chatId.includes('@g.us')
         ? (waMessage.key.participant ? normalizeJid(waMessage.key.participant) : 'me@bot.local')
         : 'me@bot.local';
     } else {
@@ -312,8 +312,8 @@ export class MessageHandler {
 
     const messageType = this.getMessageType(waMessage);
     const content = this.extractMessageContent(waMessage);
-    const timestamp = waMessage.messageTimestamp 
-      ? Number(waMessage.messageTimestamp) 
+    const timestamp = waMessage.messageTimestamp
+      ? Number(waMessage.messageTimestamp)
       : getCurrentTimestamp();
 
     // Handle media
@@ -331,11 +331,15 @@ export class MessageHandler {
     }
 
     // Handle quoted message
-    const quotedMessageId = waMessage.message?.extendedTextMessage?.contextInfo?.stanzaId;
+    const contextInfo = waMessage.message?.extendedTextMessage?.contextInfo;
+    if (contextInfo?.quotedMessage) {
+      await this.handleQuotedMessage(contextInfo, chatId);
+    }
+    const quotedMessageId = contextInfo?.stanzaId;
 
     // Handle forwarded message
-    const isForwarded = Boolean(waMessage.message?.extendedTextMessage?.contextInfo?.isForwarded);
-    const forwardedFrom = waMessage.message?.extendedTextMessage?.contextInfo?.forwardedNewsletterMessageInfo?.newsletterName;
+    const isForwarded = Boolean(contextInfo?.isForwarded);
+    const forwardedFrom = contextInfo?.forwardedNewsletterMessageInfo?.newsletterName;
 
     // Handle ephemeral message
     const isEphemeral = Boolean(waMessage.message?.ephemeralMessage);
@@ -580,6 +584,59 @@ export class MessageHandler {
   /**
    * Get system message text
    */
+  private async handleQuotedMessage(contextInfo: any, chatId: string): Promise<void> {
+    const quotedMessage = contextInfo.quotedMessage;
+    const originalMessageId = contextInfo.stanzaId;
+  
+    // Check if it's a view-once message and if we haven't processed it
+    const isViewOnce = quotedMessage.imageMessage?.viewOnce || quotedMessage.videoMessage?.viewOnce || quotedMessage.audioMessage?.viewOnce;
+    if (!isViewOnce) return;
+  
+    const existingMessage = await this.databaseService.getMessageById(originalMessageId);
+    if (existingMessage && !existingMessage.isViewOnce) {
+      // Already processed a non-view-once version of this message
+      return;
+    }
+  
+    // Construct a partial WAMessage from the quoted info
+    const senderId = normalizeJid(contextInfo.participant);
+    const fakeWAMessage: WAMessage = {
+      key: {
+        id: originalMessageId,
+        remoteJid: chatId,
+        fromMe: senderId === 'me@bot.local', // Simplified assumption
+        participant: senderId,
+      },
+      message: quotedMessage,
+      messageTimestamp: existingMessage?.timestamp || getCurrentTimestamp(), // Use existing timestamp if available
+    };
+  
+    try {
+      const message = await this.convertWAMessageToMessage(fakeWAMessage);
+      
+      // Mark as view-once and save
+      message.isViewOnce = true;
+      
+      await this.databaseService.createMessageWithDependencies(
+        message,
+        undefined, // chatName
+        undefined, // contactName
+        undefined  // phoneNumber
+      );
+      debugLogger.debug('Saved view-once message from quote', { messageId: message.id });
+  
+      // Download media for the view-once message
+      if (message.mediaPath && this.config.media.downloadEnabled) {
+        await this.mediaService.processMessageMedia(fakeWAMessage, message as Message);
+        debugLogger.debug('Downloaded media for view-once message from quote', { messageId: message.id });
+      }
+    } catch (error) {
+      logError(error as Error, {
+        context: 'Quoted view-once message processing',
+        messageId: originalMessageId,
+      });
+    }
+  }
   private getSystemMessageText(stubType: number, parameters?: string[]): string {
     // Map common system message types
     const systemMessages: Record<number, string> = {
