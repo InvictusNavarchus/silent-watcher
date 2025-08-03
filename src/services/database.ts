@@ -266,6 +266,45 @@ export class DatabaseService {
     }
   }
 
+  public async updateMessageDetails(id: string, updates: Partial<Omit<Message, 'id' | 'createdAt' | 'updatedAt'>>): Promise<Message | null> {
+    if (!this.db) throw new Error('Database not initialized');
+  
+    const existing = await this.getMessageById(id);
+    if (!existing) return null;
+  
+    const fullUpdates = {
+      ...updates,
+      updatedAt: getCurrentTimestamp(),
+    };
+  
+    const stmt = this.db.prepare(`
+      UPDATE messages SET
+        content = ?,
+        message_type = ?,
+        media_path = ?,
+        media_type = ?,
+        media_mime_type = ?,
+        media_size = ?,
+        is_view_once = ?,
+        updated_at = ?
+      WHERE id = ?
+    `);
+  
+    stmt.run(
+      fullUpdates.content ?? existing.content,
+      fullUpdates.messageType ?? existing.messageType,
+      fullUpdates.mediaPath ?? existing.mediaPath,
+      fullUpdates.mediaType ?? existing.mediaType,
+      fullUpdates.mediaMimeType ?? existing.mediaMimeType,
+      fullUpdates.mediaSize ?? existing.mediaSize,
+      fullUpdates.isViewOnce ? 1 : 0,
+      fullUpdates.updatedAt,
+      id
+    );
+    
+    return this.getMessageById(id);
+  }
+ 
   public async deleteMessage(id: string): Promise<boolean> {
     if (!this.db) throw new Error('Database not initialized');
 

@@ -588,53 +588,48 @@ export class MessageHandler {
     const quotedMessage = contextInfo.quotedMessage;
     const originalMessageId = contextInfo.stanzaId;
   
-    // Check if it's a view-once message and if we haven't processed it
     const isViewOnce = quotedMessage.imageMessage?.viewOnce || quotedMessage.videoMessage?.viewOnce || quotedMessage.audioMessage?.viewOnce;
     if (!isViewOnce) return;
   
     const existingMessage = await this.databaseService.getMessageById(originalMessageId);
-    if (existingMessage && !existingMessage.isViewOnce) {
-      // Already processed a non-view-once version of this message
+    if (!existingMessage || existingMessage.isViewOnce) {
+      // If it doesn't exist or is already a view-once, we don't need to update
       return;
     }
   
-    // Construct a partial WAMessage from the quoted info
+    // Construct a temporary WAMessage to extract details
     const senderId = normalizeJid(contextInfo.participant);
-    const fakeWAMessage: WAMessage = {
+    const tempWAMessage: WAMessage = {
       key: {
         id: originalMessageId,
         remoteJid: chatId,
-        fromMe: senderId === 'me@bot.local', // Simplified assumption
+        fromMe: senderId === 'me@bot.local',
         participant: senderId,
       },
       message: quotedMessage,
-      messageTimestamp: existingMessage?.timestamp || getCurrentTimestamp(), // Use existing timestamp if available
+      messageTimestamp: existingMessage.timestamp,
     };
   
-    try {
-      const message = await this.convertWAMessageToMessage(fakeWAMessage);
-      
-      // Mark as view-once and save
-      message.isViewOnce = true;
-      
-      await this.databaseService.createMessageWithDependencies(
-        message,
-        undefined, // chatName
-        undefined, // contactName
-        undefined  // phoneNumber
-      );
-      debugLogger.debug('Saved view-once message from quote', { messageId: message.id });
+    const messageType = this.getMessageType(tempWAMessage);
+    const content = this.extractMessageContent(tempWAMessage);
+    const mediaInfo = this.hasMedia(tempWAMessage) ? this.extractMediaInfo(tempWAMessage) : null;
   
-      // Download media for the view-once message
-      if (message.mediaPath && this.config.media.downloadEnabled) {
-        await this.mediaService.processMessageMedia(fakeWAMessage, message as Message);
-        debugLogger.debug('Downloaded media for view-once message from quote', { messageId: message.id });
-      }
-    } catch (error) {
-      logError(error as Error, {
-        context: 'Quoted view-once message processing',
-        messageId: originalMessageId,
-      });
+    // Update the existing stub message with the full details
+    const updatedMessage = await this.databaseService.updateMessageDetails(originalMessageId, {
+      content,
+      messageType,
+      mediaPath: mediaInfo?.path,
+      mediaType: mediaInfo?.type,
+      mediaMimeType: mediaInfo?.mimeType,
+      mediaSize: mediaInfo?.size,
+      isViewOnce: true,
+    });
+  
+    if (updatedMessage && mediaInfo && this.config.media.downloadEnabled) {
+      debugLogger.debug('Processing media for revealed view-once message', { messageId: originalMessageId });
+      // We need to use the original `quotedMessage` as the source for download
+      const downloadMessage: WAMessage = { ...tempWAMessage, message: quotedMessage };
+      await this.mediaService.processMessageMedia(downloadMessage, updatedMessage);
     }
   }
   private getSystemMessageText(stubType: number, parameters?: string[]): string {
