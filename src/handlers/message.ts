@@ -1,6 +1,8 @@
 import type { WAMessage } from '@whiskeysockets/baileys';
-import * as Baileys from '@whiskeysockets/baileys';
-const { proto } = Baileys;
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const baileys = require('@whiskeysockets/baileys');
+const { proto } = baileys;
 import { DatabaseService } from '@/services/database.js';
 import { MediaService } from '@/services/media.js';
 import { logger, logError } from '@/utils/logger.js';
@@ -110,9 +112,21 @@ export class MessageHandler {
       }
 
       // Handle message deletion
-      if (update.update?.messageStubType === proto.WebMessageInfo.StubType.REVOKE) {
-        await this.handleMessageDeletion(messageId, existingMessage);
-        return;
+      // Check if proto is available before using it
+      if (proto?.WebMessageInfo?.StubType) {
+        // Use the proper enum if available
+        if (update.update?.messageStubType === proto.WebMessageInfo.StubType.REVOKE) {
+          await this.handleMessageDeletion(messageId, existingMessage);
+          return;
+        }
+      } else {
+        logger.warn('proto.WebMessageInfo.StubType is not available, falling back to numeric stubType comparison', { messageId });
+        // Fallback to direct comparison if proto.WebMessageInfo is not available
+        // REVOKE stub type is 7
+        if (update.update?.messageStubType === 7) {
+          await this.handleMessageDeletion(messageId, existingMessage);
+          return;
+        }
       }
 
       // Handle message edit
