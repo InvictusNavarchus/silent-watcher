@@ -22,6 +22,8 @@ export class MessageHandler {
   private databaseService: DatabaseService;
   private mediaService: MediaService;
   private config: Config;
+  private recentlyProcessedEdits = new Set<string>();
+  private recentlyProcessedDeletes = new Set<string>();
 
   constructor(
     databaseService: DatabaseService, 
@@ -39,10 +41,49 @@ export class MessageHandler {
   public async processMessage(waMessage: WAMessage): Promise<void> {
     debugLogger.debug('Starting message processing', { waMessage });
     try {
-      if (!waMessage.key.id || !waMessage.key.remoteJid || waMessage.message?.protocolMessage) {
-        logger.warn('Invalid or protocol message received, skipping', { waMessage });
-        debugLogger.warn('Invalid or protocol message received, skipping', { waMessage });
+      if (!waMessage.key.id || !waMessage.key.remoteJid) {
+        logger.warn('Invalid message received, skipping', { waMessage });
+        debugLogger.warn('Invalid message received, skipping', { waMessage });
         return;
+      }
+
+      // Handle message edits delivered via protocolMessage
+      if (waMessage.message?.protocolMessage) {
+        const protocolMsg = waMessage.message.protocolMessage;
+        switch (protocolMsg.type) {
+          case proto.Message.ProtocolMessage.Type.MESSAGE_EDIT:
+            if (protocolMsg.editedMessage) {
+              const originalMessageId = protocolMsg.key?.id;
+              if (originalMessageId) {
+                const existingMessage = await this.databaseService.getMessageById(originalMessageId);
+                if (existingMessage) {
+                  await this.handleMessageEdit(originalMessageId, protocolMsg.editedMessage, existingMessage);
+                } else {
+                  logger.warn('Message edit received for unknown message', { originalMessageId });
+                  debugLogger.warn('Message edit for unknown message', { originalMessageId, waMessage });
+                }
+              }
+            }
+            break;
+
+          case proto.Message.ProtocolMessage.Type.REVOKE:
+            const originalMessageId = protocolMsg.key?.id;
+            if (originalMessageId) {
+              const existingMessage = await this.databaseService.getMessageById(originalMessageId);
+              if (existingMessage) {
+                await this.handleMessageDeletion(originalMessageId, existingMessage);
+              } else {
+                logger.warn('Message deletion received for unknown message', { originalMessageId });
+                debugLogger.warn('Message deletion for unknown message', { originalMessageId, waMessage });
+              }
+            }
+            break;
+
+          default:
+            logger.warn('Unhandled protocol message type received, skipping', { type: protocolMsg.type, waMessage });
+            debugLogger.warn('Unhandled protocol message type received, skipping', { type: protocolMsg.type, waMessage });
+        }
+        return; // Stop further processing for this event
       }
 
       // Skip processing very old messages (older than 1 hour) during initial sync
@@ -124,7 +165,11 @@ export class MessageHandler {
       if (proto?.WebMessageInfo?.StubType) {
         // Use the proper enum if available
         if (update.update?.messageStubType === proto.WebMessageInfo.StubType.REVOKE || (update.update?.message === null && update.update?.messageStubType === 1)) {
-          await this.handleMessageDeletion(messageId, existingMessage, update.key);
+          if (!this.recentlyProcessedDeletes.has(messageId)) {
+            await this.handleMessageDeletion(messageId, existingMessage);
+          } else {
+            debugLogger.debug('Skipping duplicate message deletion from messages.update', { messageId });
+          }
           return;
         }
       } else {
@@ -132,14 +177,24 @@ export class MessageHandler {
         // Fallback to direct comparison if proto.WebMessageInfo is not available
         // REVOKE stub type is 7
         if (update.update?.messageStubType === 7 || (update.update?.message === null && update.update?.messageStubType === 1)) {
-          await this.handleMessageDeletion(messageId, existingMessage, update.key);
+          if (!this.recentlyProcessedDeletes.has(messageId)) {
+            await this.handleMessageDeletion(messageId, existingMessage);
+          } else {
+            debugLogger.debug('Skipping duplicate message deletion from messages.update', { messageId });
+          }
           return;
         }
       }
 
       // Handle message edit
       if (update.update?.message?.editedMessage) {
-        await this.handleMessageEdit(messageId, update.update.message, existingMessage, update.key);
+        const newContent = this.extractMessageContent({ message: update.update.message } as WAMessage);
+        const cacheKey = `${messageId}:${newContent}`;
+        if (!this.recentlyProcessedEdits.has(cacheKey)) {
+          await this.handleMessageEdit(messageId, update.update.message, existingMessage);
+        } else {
+          debugLogger.debug('Skipping duplicate message edit from messages.update', { messageId });
+        }
         return;
       }
 
@@ -436,7 +491,15 @@ export class MessageHandler {
   /**
    * Handle message deletion
    */
-  private async handleMessageDeletion(originalMessageId: string, existingMessage: Message, key: any): Promise<void> {
+  private async handleMessageDeletion(originalMessageId: string, existingMessage: Message): Promise<void> {
+    // Deduplication logic
+    if (this.recentlyProcessedDeletes.has(originalMessageId)) {
+      debugLogger.debug('Skipping duplicate message deletion processing', { originalMessageId });
+      return;
+    }
+    this.recentlyProcessedDeletes.add(originalMessageId);
+    setTimeout(() => this.recentlyProcessedDeletes.delete(originalMessageId), 5000); // 5-second window
+
     const deletionMessage: Omit<Message, 'createdAt' | 'updatedAt'> = {
       id: generateId(),
       chatId: existingMessage.chatId,
@@ -468,8 +531,17 @@ export class MessageHandler {
   /**
    * Handle message edit
    */
-  private async handleMessageEdit(originalMessageId: string, newMessage: any, existingMessage: Message, key: any): Promise<void> {
+  private async handleMessageEdit(originalMessageId: string, newMessage: any, existingMessage: Message): Promise<void> {
     const newContent = this.extractMessageContent({ message: newMessage } as WAMessage);
+
+    // Deduplication logic
+    const cacheKey = `${originalMessageId}:${newContent}`;
+    if (this.recentlyProcessedEdits.has(cacheKey)) {
+      debugLogger.debug('Skipping duplicate message edit processing', { originalMessageId, newContent });
+      return;
+    }
+    this.recentlyProcessedEdits.add(cacheKey);
+    setTimeout(() => this.recentlyProcessedEdits.delete(cacheKey), 5000); // 5-second window
 
     if (newContent !== existingMessage.content) {
       const editedMessage: Omit<Message, 'createdAt' | 'updatedAt'> = {
