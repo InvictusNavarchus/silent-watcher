@@ -83,6 +83,10 @@ export class MessageHandler {
             }
             break;
 
+          case proto.Message.ProtocolMessage.Type.PEER_DATA_OPERATION_REQUEST_RESPONSE_MESSAGE:
+            debugLogger.debug('Received peer data operation response, ignoring.', { waMessage });
+            break;
+
           default:
             logger.warn('Unhandled protocol message type received, skipping', { type: protocolMsg.type, waMessage });
             debugLogger.warn('Unhandled protocol message type received, skipping', { type: protocolMsg.type, waMessage });
