@@ -79,7 +79,7 @@ export class MediaService {
 
       // Process image compression and thumbnails
       if (message.mediaType === MediaType.IMAGE && this.config.media.compressionEnabled) {
-        const processed = await this.processImage(buffer, fullPath);
+        const processed = await this.processImage(buffer, fullPath, waMessage);
         finalBuffer = processed.buffer;
         thumbnailPath = processed.thumbnailPath;
         isCompressed = processed.isCompressed;
@@ -130,7 +130,11 @@ export class MediaService {
   /**
    * Process image compression and thumbnail generation
    */
-  private async processImage(buffer: Buffer, filePath: string): Promise<{
+  private async processImage(
+    buffer: Buffer,
+    filePath: string,
+    waMessage: WAMessage
+  ): Promise<{
     buffer: Buffer;
     thumbnailPath?: string;
     isCompressed: boolean;
@@ -138,36 +142,45 @@ export class MediaService {
     try {
       const image = sharp(buffer);
       const metadata = await image.metadata();
-      
+      const thumbnailPath = filePath.replace(/\.[^.]+$/, '_thumb.jpg');
       let processedBuffer = buffer;
       let isCompressed = false;
-
+  
+      // Use existing thumbnail if available
+      const jpegThumbnail = waMessage.message?.imageMessage?.jpegThumbnail;
+      if (jpegThumbnail && jpegThumbnail.length > 0) {
+        await writeFile(thumbnailPath, jpegThumbnail);
+      } else {
+        // Generate thumbnail if not available
+        await image
+          .resize(200, 200, { fit: 'inside' })
+          .jpeg({ quality: 70 })
+          .toFile(thumbnailPath);
+      }
+  
       // Compress if image is large
-      if (metadata.width && metadata.height && (metadata.width > 1920 || metadata.height > 1080)) {
+      if (
+        metadata.width &&
+        metadata.height &&
+        (metadata.width > 1920 || metadata.height > 1080)
+      ) {
         processedBuffer = await image
           .resize(1920, 1080, { fit: 'inside', withoutEnlargement: true })
           .jpeg({ quality: 85 })
           .toBuffer();
         isCompressed = true;
       }
-
-      // Generate thumbnail
-      const thumbnailPath = filePath.replace(/\.[^.]+$/, '_thumb.jpg');
-      await image
-        .resize(200, 200, { fit: 'inside' })
-        .jpeg({ quality: 70 })
-        .toFile(thumbnailPath);
-
+  
       return {
         buffer: processedBuffer,
         thumbnailPath,
-        isCompressed
+        isCompressed,
       };
     } catch (error) {
       logger.warn('Image processing failed, using original', { error });
       return {
         buffer,
-        isCompressed: false
+        isCompressed: false,
       };
     }
   }
