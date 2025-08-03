@@ -130,12 +130,16 @@ export const logPerformance = (operation: string, duration: number, metadata?: R
 };
 
 // Add error logging helper with context
-export const logError = (error: Error, context?: Record<string, unknown>): void => {
-  logger.error('Error occurred', {
-    message: error.message,
+export const logError = (error: Error, context?: Record<string, unknown>): Promise<void> => {
+  const errorInfo = {
+    ...context,
     stack: error.stack,
-    name: error.name,
-    ...context
+    message: error.message,
+    name: error.name
+  };
+  return new Promise((resolve) => {
+    logger.error(error.message, errorInfo);
+    resolve();
   });
 };
 
