@@ -107,27 +107,41 @@ function createDebugLogger(): winston.Logger {
   // Filter for noisy Baileys logs that we want to exclude
   // A more aggressive filter for noisy Baileys logs
   const noisyBaileysFilter = winston.format((info) => {
-    // This is a common pattern for the noisiest logs, which often have numeric keys
-    // representing different parts of the raw data frame.
+    // 1. Filter by top-level numeric keys (a strong indicator of raw frame data)
     const hasNumericKeys = Object.keys(info).some(key => !isNaN(parseInt(key, 10)));
-
     if (hasNumericKeys) {
       return false;
     }
-    
+
     const message = info.message;
+
+    // 2. Filter by known noisy strings
     if (typeof message === 'string') {
-      // Filter for other known noisy messages
-      const noisySubstrings = ['recv ', 'fetched props', 'sendActiveReceipts', 'handled 0 offline messages'];
+      const noisySubstrings = [
+        'recv ',
+        'fetched props',
+        'sendActiveReceipts',
+        'handled 0 offline messages',
+        'flushed events for initial buffer',
+        'opened connection to WA',
+        'pre-keys found on server',
+      ];
       if (noisySubstrings.some(sub => message.includes(sub))) {
         return false;
       }
     }
 
-    // Also filter logs that are just simple objects with a single 'message' key
-    // that contains an empty object, as seen in the logs provided.
-    if (typeof info.message === 'object' && info.message !== null && Object.keys(info.message).length === 0) {
+    // 3. Filter by known noisy object structures in the 'message' property
+    if (typeof message === 'object' && message !== null) {
+      // Filter empty message objects: { message: {} }
+      if (Object.keys(message).length === 0) {
         return false;
+      }
+      // Filter specific noisy structures from connection logic
+      const noisyKeys = ['node', 'recv', 'attrs', 'handshake', 'helloMsg'];
+      if (noisyKeys.some(key => key in message)) {
+        return false;
+      }
     }
 
     return info;
