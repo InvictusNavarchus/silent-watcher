@@ -24,6 +24,7 @@ export class MessageHandler {
   private config: Config;
   private recentlyProcessedEdits = new Set<string>();
   private recentlyProcessedDeletes = new Set<string>();
+  private processingMessageIds = new Set<string>();
 
   constructor(
     databaseService: DatabaseService, 
@@ -39,13 +40,16 @@ export class MessageHandler {
    * Process incoming WhatsApp message
    */
   public async processMessage(waMessage: WAMessage): Promise<void> {
-    debugLogger.debug('Starting message processing', { waMessage });
+    const messageId = waMessage.key.id;
+    if (!messageId || !waMessage.key.remoteJid) {
+      logger.warn('Invalid message received, skipping', { waMessage });
+      debugLogger.warn('Invalid message received, skipping', { waMessage });
+      return;
+    }
+
+    this.processingMessageIds.add(messageId);
     try {
-      if (!waMessage.key.id || !waMessage.key.remoteJid) {
-        logger.warn('Invalid message received, skipping', { waMessage });
-        debugLogger.warn('Invalid message received, skipping', { waMessage });
-        return;
-      }
+      debugLogger.debug('Starting message processing', { waMessage });
 
       // Handle message edits delivered via protocolMessage
       if (waMessage.message?.protocolMessage) {
@@ -144,25 +148,35 @@ export class MessageHandler {
       });
 
     } catch (error) {
-      logError(error as Error, { 
-        context: 'Message processing', 
+      logError(error as Error, {
+        context: 'Message processing',
         messageId: waMessage.key.id,
-        chatId: waMessage.key.remoteJid
+        chatId: waMessage.key.remoteJid,
       });
+    } finally {
+      this.processingMessageIds.delete(messageId);
     }
   }
 
   /**
    * Process message update (edit/delete)
    */
-  public async processMessageUpdate(update: any): Promise<void> {
-    debugLogger.debug('Processing message update', { update });
+  public async processMessageUpdate(update: any, retryCount = 0): Promise<void> {
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY_MS = 500;
+
+    debugLogger.debug('Processing message update', { update, retryCount });
     try {
       const messageId = update.key.id;
       if (!messageId) return;
 
       const existingMessage = await this.databaseService.getMessageById(messageId);
       if (!existingMessage) {
+        if (this.processingMessageIds.has(messageId) && retryCount < MAX_RETRIES) {
+          debugLogger.debug('Message update for message currently being processed, retrying...', { messageId, retryCount });
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+          return this.processMessageUpdate(update, retryCount + 1);
+        }
         logger.warn('Message update received for unknown message', { messageId });
         debugLogger.warn('Message update for unknown message', { messageId, update });
         return;
