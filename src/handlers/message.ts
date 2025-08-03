@@ -1,6 +1,8 @@
 import type { WAMessage } from '@whiskeysockets/baileys';
-import * as Baileys from '@whiskeysockets/baileys';
-const { proto } = Baileys;
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const baileys = require('@whiskeysockets/baileys');
+const { proto } = baileys;
 import { DatabaseService } from '@/services/database.js';
 import { MediaService } from '@/services/media.js';
 import { logger, logError } from '@/utils/logger.js';
@@ -41,10 +43,39 @@ export class MessageHandler {
         return;
       }
 
+      // Skip processing very old messages (older than 1 hour) during initial sync
+      const messageTime = waMessage.messageTimestamp ? Number(waMessage.messageTimestamp) : getCurrentTimestamp();
+      const oneHourAgo = getCurrentTimestamp() - (60 * 60);
+      
+      if (messageTime < oneHourAgo) {
+        logger.debug('Skipping old message from initial sync', { 
+          messageId: waMessage.key.id, 
+          messageTime,
+          age: getCurrentTimestamp() - messageTime 
+        });
+        return;
+      }
+
+      // Process message in a transaction to ensure atomicity
       const message = await this.convertWAMessageToMessage(waMessage);
       
-      // Save message to database
-      await this.databaseService.createMessage(message);
+      // Handle contact creation with proper name and phone extraction
+      let contactName: string | undefined;
+      let phoneNumber: string | undefined;
+      
+      if (message.senderId === 'me@bot.local') {
+        contactName = 'Silent Watcher Bot';
+      } else if (message.senderId.includes('@s.whatsapp.net')) {
+        phoneNumber = message.senderId.split('@')[0];
+      }
+      
+      // Create message with dependencies in a single transaction
+      await this.databaseService.createMessageWithDependencies(
+        message,
+        undefined, // chatName
+        contactName,
+        phoneNumber
+      );
       
       // Download and process media if enabled
       if (message.mediaPath && this.config.media.downloadEnabled) {
@@ -81,9 +112,21 @@ export class MessageHandler {
       }
 
       // Handle message deletion
-      if (update.update?.messageStubType === proto.WebMessageInfo.StubType.REVOKE) {
-        await this.handleMessageDeletion(messageId, existingMessage);
-        return;
+      // Check if proto is available before using it
+      if (proto?.WebMessageInfo?.StubType) {
+        // Use the proper enum if available
+        if (update.update?.messageStubType === proto.WebMessageInfo.StubType.REVOKE) {
+          await this.handleMessageDeletion(messageId, existingMessage);
+          return;
+        }
+      } else {
+        logger.warn('proto.WebMessageInfo.StubType is not available, falling back to numeric stubType comparison', { messageId });
+        // Fallback to direct comparison if proto.WebMessageInfo is not available
+        // REVOKE stub type is 7
+        if (update.update?.messageStubType === 7) {
+          await this.handleMessageDeletion(messageId, existingMessage);
+          return;
+        }
       }
 
       // Handle message edit
@@ -186,9 +229,17 @@ export class MessageHandler {
   private async convertWAMessageToMessage(waMessage: WAMessage): Promise<Omit<Message, 'createdAt' | 'updatedAt'>> {
     const messageId = waMessage.key.id!;
     const chatId = normalizeJid(waMessage.key.remoteJid!);
-    const senderId = waMessage.key.fromMe 
-      ? 'me' 
-      : normalizeJid(waMessage.key.participant || waMessage.key.remoteJid!);
+    
+    // Fix sender ID handling - use a proper JID format for 'me' messages
+    let senderId: string;
+    if (waMessage.key.fromMe) {
+      // For messages from the bot, use a consistent sender ID
+      senderId = chatId.includes('@g.us') 
+        ? (waMessage.key.participant ? normalizeJid(waMessage.key.participant) : 'me@bot.local')
+        : 'me@bot.local';
+    } else {
+      senderId = normalizeJid(waMessage.key.participant || waMessage.key.remoteJid!);
+    }
 
     const messageType = this.getMessageType(waMessage);
     const content = this.extractMessageContent(waMessage);

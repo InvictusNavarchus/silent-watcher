@@ -26,6 +26,7 @@ export class WhatsAppService extends EventEmitter {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 10;
   private isShuttingDown = false;
+  private isConnecting = false; // Add connection lock
 
   constructor(config: Config) {
     super();
@@ -42,6 +43,14 @@ export class WhatsAppService extends EventEmitter {
    * Initialize WhatsApp connection
    */
   public async initialize(): Promise<void> {
+    // Prevent multiple simultaneous connection attempts
+    if (this.isConnecting) {
+      logger.debug('Connection attempt already in progress, skipping');
+      return;
+    }
+
+    this.isConnecting = true;
+
     try {
       logger.info('Initializing WhatsApp service');
       
@@ -49,7 +58,6 @@ export class WhatsAppService extends EventEmitter {
       
       this.socket = makeWASocket({
         auth: authState,
-        printQRInTerminal: !this.config.bot.usePairingCode,
         logger: {
           level: 'silent',
           trace: () => {},
@@ -90,6 +98,8 @@ export class WhatsAppService extends EventEmitter {
     } catch (error) {
       logError(error as Error, { context: 'WhatsApp initialization' });
       throw error;
+    } finally {
+      this.isConnecting = false;
     }
   }
 
@@ -200,6 +210,13 @@ export class WhatsAppService extends EventEmitter {
       
       const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
       
+      logger.debug('Connection closed', { 
+        shouldReconnect, 
+        autoReconnect: this.config.bot.autoReconnect,
+        isShuttingDown: this.isShuttingDown,
+        disconnectReason: (lastDisconnect?.error as Boom)?.output?.statusCode
+      });
+      
       if (shouldReconnect && this.config.bot.autoReconnect && !this.isShuttingDown) {
         await this.handleReconnection(lastDisconnect);
       } else {
@@ -224,7 +241,7 @@ export class WhatsAppService extends EventEmitter {
   /**
    * Handle reconnection logic with exponential backoff
    */
-  private async handleReconnection(_lastDisconnect: any): Promise<void> {
+  private async handleReconnection(lastDisconnect: any): Promise<void> {
     this.reconnectAttempts++;
     
     if (this.reconnectAttempts > this.maxReconnectAttempts) {
@@ -236,12 +253,34 @@ export class WhatsAppService extends EventEmitter {
     const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 30000);
     logger.info(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
     
+    // Log disconnect reason for better debugging
+    const disconnectReason = (lastDisconnect?.error as Boom)?.output?.statusCode;
+    logger.debug('Disconnect reason', { reason: disconnectReason, DisconnectReason });
+    
     await sleep(delay);
     
     try {
-      await this.initialize();
+      // Close existing socket if it exists to prevent conflicts
+      if (this.socket) {
+        try {
+          this.socket.end(undefined);
+        } catch (error) {
+          logger.debug('Error closing existing socket', { error });
+        }
+        this.socket = null;
+      }
+      
+      // Only reinitialize if not shutting down
+      if (!this.isShuttingDown) {
+        await this.initialize();
+      }
     } catch (error) {
       logError(error as Error, { context: 'Reconnection attempt', attempt: this.reconnectAttempts });
+      
+      // If initialization fails, try again after a longer delay
+      if (this.reconnectAttempts < this.maxReconnectAttempts) {
+        setTimeout(() => this.handleReconnection(lastDisconnect), 5000);
+      }
     }
   }
 
