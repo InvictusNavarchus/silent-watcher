@@ -217,32 +217,52 @@ class SilentWatcherBot {
   /**
    * Graceful shutdown
    */
-  public async shutdown(): Promise<void> {
+  public async shutdown(signal: string = 'SIGTERM'): Promise<void> {
     if (this.isShuttingDown) return;
     this.isShuttingDown = true;
 
-    logger.info('Shutting down Silent Watcher Bot...');
+    // Use console.log here since logger might be closed
+    console.log(`\n${new Date().toISOString()} [INFO] Received ${signal}, shutting down Silent Watcher Bot...`);
 
     try {
-      // Log shutdown event
-      await this.logSystemEvent(SystemEventType.BOT_STOPPED, 'Silent Watcher Bot shutting down', EventSeverity.LOW);
+      // Log shutdown event (don't await to avoid hanging)
+      this.logSystemEvent(SystemEventType.BOT_STOPPED, 'Silent Watcher Bot shutting down', EventSeverity.LOW)
+        .catch(err => console.error('Error logging shutdown event:', err));
 
       // Stop web server
       if (this.webServer) {
-        await this.webServer.stop();
+        console.log('Stopping web server...');
+        await this.webServer.stop().catch(err => 
+          console.error('Error stopping web server:', err)
+        );
       }
 
       // Shutdown WhatsApp service
-      await this.whatsappService.shutdown();
+      console.log('Shutting down WhatsApp service...');
+      await this.whatsappService.shutdown().catch(err => 
+        console.error('Error shutting down WhatsApp service:', err)
+      );
 
       // Close database connection
-      this.databaseService.close();
+      console.log('Closing database connection...');
+      await new Promise<void>((resolve) => {
+        this.databaseService.close();
+        // Small delay to allow pending operations to complete
+        setTimeout(resolve, 100);
+      });
 
-      logger.info('Silent Watcher Bot shutdown complete');
-      process.exit(0);
+      console.log('Silent Watcher Bot shutdown complete');
     } catch (error) {
-      logError(error as Error, { context: 'Bot shutdown' });
-      process.exit(1);
+      console.error('Error during shutdown:', error);
+    } finally {
+      // Close the logger last
+      console.log('Closing logger...');
+      try {
+        await import('@/utils/logger').then(({ closeLogger }) => closeLogger());
+      } catch (err) {
+        console.error('Error closing logger:', err);
+      }
+      process.exit(0);
     }
   }
 
@@ -266,31 +286,49 @@ class SilentWatcherBot {
 const bot = new SilentWatcherBot();
 
 // Handle process signals for graceful shutdown
-process.on('SIGINT', async () => {
-  logger.info('Received SIGINT signal');
-  await bot.shutdown();
-});
+const handleShutdown = (signal: string) => {
+  // Only handle the first signal
+  if (process.listenerCount(signal) > 1) return;
+  
+  console.log(`\n${new Date().toISOString()} [INFO] Received ${signal} signal`);
+  
+  // Don't wait for the full shutdown to avoid hanging
+  bot.shutdown(signal).catch(err => {
+    console.error('Error during shutdown:', err);
+    process.exit(1);
+  });
+};
 
-process.on('SIGTERM', async () => {
-  logger.info('Received SIGTERM signal');
-  await bot.shutdown();
-});
+// Register signal handlers
+process.on('SIGINT', () => handleShutdown('SIGINT'));
+process.on('SIGTERM', () => handleShutdown('SIGTERM'));
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
-  logError(error, { context: 'Uncaught exception' });
-  process.exit(1);
+  console.error('Uncaught exception:', error);
+  // Don't exit immediately to allow for cleanup
+  bot.shutdown('uncaughtException').catch(err => {
+    console.error('Error during emergency shutdown:', err);
+    process.exit(1);
+  });
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled promise rejection', { 
-    reason: reason instanceof Error ? reason.message : reason, 
-    stack: reason instanceof Error ? reason.stack : undefined,
-    promise: promise.toString()
-  });
-  // Don't exit immediately, let the bot continue running
-  // process.exit(1);
+  const error = reason instanceof Error 
+    ? reason 
+    : new Error(`Unhandled rejection: ${reason}`);
+  
+  console.error('Unhandled promise rejection:', error);
+  
+  // Log the error but don't crash for unhandled rejections
+  // as they might be handled by the application later
+  if (process.env.NODE_ENV === 'production') {
+    logError(error, { 
+      context: 'Unhandled promise rejection',
+      promise: promise.toString()
+    }).catch(() => {}); // Prevent unhandled rejection in the logger
+  }
 });
 
 // Start the bot

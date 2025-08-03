@@ -139,13 +139,42 @@ export const logError = (error: Error, context?: Record<string, unknown>): void 
   });
 };
 
-// Graceful shutdown
-process.on('SIGINT', () => {
-  logger.info('Received SIGINT, shutting down gracefully');
-  logger.end();
-});
+/**
+ * Close all logger transports
+ */
+export function closeLogger(): Promise<void> {
+  if (!_logger) {
+    return Promise.resolve();
+  }
+  
+  return new Promise((resolve) => {
+    const transports = _logger?.transports || [];
+    let closedTransports = 0;
+    
+    if (transports.length === 0) {
+      return resolve();
+    }
+    
+    const handleClose = () => {
+      closedTransports++;
+      if (closedTransports >= transports.length) {
+        _logger = null;
+        resolve();
+      }
+    };
+    
+    for (const transport of transports) {
+      if (transport.close) {
+        transport.close();
+      }
+      // For file transports, we need to wait for the 'finish' event
+      if ('on' in transport) {
+        transport.on('finish', handleClose);
+      } else {
+        handleClose();
+      }
+    }
+  });
+}
 
-process.on('SIGTERM', () => {
-  logger.info('Received SIGTERM, shutting down gracefully');
-  logger.end();
-});
+// Signal handling is now managed in main.ts
