@@ -52,29 +52,33 @@ export class MessageHandler {
         const protocolMsg = waMessage.message.protocolMessage;
         switch (protocolMsg.type) {
           case proto.Message.ProtocolMessage.Type.MESSAGE_EDIT:
-            if (protocolMsg.editedMessage) {
-              const originalMessageId = protocolMsg.key?.id;
-              if (originalMessageId) {
-                const existingMessage = await this.databaseService.getMessageById(originalMessageId);
-                if (existingMessage) {
-                  await this.handleMessageEdit(originalMessageId, protocolMsg.editedMessage, existingMessage);
-                } else {
-                  logger.warn('Message edit received for unknown message', { originalMessageId });
-                  debugLogger.warn('Message edit for unknown message', { originalMessageId, waMessage });
+            {
+              if (protocolMsg.editedMessage) {
+                const originalMessageId = protocolMsg.key?.id;
+                if (originalMessageId) {
+                  const existingMessage = await this.databaseService.getMessageById(originalMessageId);
+                  if (existingMessage) {
+                    await this.handleMessageEdit(originalMessageId, protocolMsg.editedMessage, existingMessage);
+                  } else {
+                    logger.warn('Message edit received for unknown message', { originalMessageId });
+                    debugLogger.warn('Message edit for unknown message', { originalMessageId, waMessage });
+                  }
                 }
               }
             }
             break;
 
           case proto.Message.ProtocolMessage.Type.REVOKE:
-            const originalMessageId = protocolMsg.key?.id;
-            if (originalMessageId) {
-              const existingMessage = await this.databaseService.getMessageById(originalMessageId);
-              if (existingMessage) {
-                await this.handleMessageDeletion(originalMessageId, existingMessage);
-              } else {
-                logger.warn('Message deletion received for unknown message', { originalMessageId });
-                debugLogger.warn('Message deletion for unknown message', { originalMessageId, waMessage });
+            {
+              const originalMessageId = protocolMsg.key?.id;
+              if (originalMessageId) {
+                const existingMessage = await this.databaseService.getMessageById(originalMessageId);
+                if (existingMessage) {
+                  await this.handleMessageDeletion(originalMessageId, existingMessage);
+                } else {
+                  logger.warn('Message deletion received for unknown message', { originalMessageId });
+                  debugLogger.warn('Message deletion for unknown message', { originalMessageId, waMessage });
+                }
               }
             }
             break;
