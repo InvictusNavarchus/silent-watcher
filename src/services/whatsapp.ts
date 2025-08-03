@@ -13,7 +13,7 @@ const {
   useMultiFileAuthState
 } = baileys;
 import { Boom } from '@hapi/boom';
-import { logger, logError } from '@/utils/logger.js';
+import { logger, logError, debugLogger } from '@/utils/logger.js';
 import { sleep, getCurrentTimestamp, generateId } from '@/utils/helpers.js';
 import type { Config, BotState } from '@/types/index.js';
 import { SystemEventType, EventSeverity } from '@/types/index.js';
@@ -59,24 +59,7 @@ export class WhatsAppService extends EventEmitter {
       
       this.socket = makeWASocket({
         auth: authState,
-        logger: {
-          level: 'silent',
-          trace: () => {},
-          debug: () => {},
-          info: () => {},
-          warn: () => {},
-          error: () => {},
-          fatal: () => {},
-          child: () => ({
-            level: 'silent',
-            trace: () => {},
-            debug: () => {},
-            info: () => {},
-            warn: () => {},
-            error: () => {},
-            fatal: () => {}
-          })
-        } as any,
+        logger: debugLogger as any,
         browser: ['Silent Watcher', 'Chrome', '1.0.0'],
         generateHighQualityLinkPreview: true,
         markOnlineOnConnect: false,
@@ -196,6 +179,7 @@ export class WhatsAppService extends EventEmitter {
    * Handle connection state updates
    */
   private async handleConnectionUpdate(update: Partial<ConnectionState>): Promise<void> {
+    debugLogger.debug('Received connection update', { update });
     const { connection, lastDisconnect, qr } = update;
 
     if (qr) {
@@ -295,6 +279,7 @@ export class WhatsAppService extends EventEmitter {
    * Handle incoming messages
    */
   private async handleMessagesUpsert(messageUpdate: BaileysEventMap['messages.upsert']): Promise<void> {
+    debugLogger.debug('Received messages.upsert event', { messageUpdate });
     const { messages, type } = messageUpdate;
 
     for (const message of messages) {
@@ -321,6 +306,7 @@ export class WhatsAppService extends EventEmitter {
    * Handle message updates (edits, deletions)
    */
   private async handleMessagesUpdate(messageUpdates: BaileysEventMap['messages.update']): Promise<void> {
+    debugLogger.debug('Received messages.update event', { messageUpdates });
     for (const update of messageUpdates) {
       try {
         this.emit('message-update', update);
@@ -342,6 +328,7 @@ export class WhatsAppService extends EventEmitter {
    * Handle message reactions
    */
   private async handleMessageReactions(reactions: BaileysEventMap['messages.reaction']): Promise<void> {
+    debugLogger.debug('Received messages.reaction event', { reactions });
     for (const reaction of reactions) {
       try {
         this.emit('message-reaction', reaction);
@@ -363,6 +350,7 @@ export class WhatsAppService extends EventEmitter {
    * Handle chat updates
    */
   private async handleChatsUpdate(chatUpdates: BaileysEventMap['chats.update']): Promise<void> {
+    debugLogger.debug('Received chats.update event', { chatUpdates });
     for (const chat of chatUpdates) {
       try {
         this.emit('chat-update', chat);
@@ -380,6 +368,7 @@ export class WhatsAppService extends EventEmitter {
    * Handle contact updates
    */
   private async handleContactsUpdate(contactUpdates: BaileysEventMap['contacts.update']): Promise<void> {
+    debugLogger.debug('Received contacts.update event', { contactUpdates });
     for (const contact of contactUpdates) {
       try {
         this.emit('contact-update', contact);
@@ -397,6 +386,7 @@ export class WhatsAppService extends EventEmitter {
    * Handle group updates
    */
   private async handleGroupsUpdate(groupUpdates: BaileysEventMap['groups.update']): Promise<void> {
+    debugLogger.debug('Received groups.update event', { groupUpdates });
     for (const group of groupUpdates) {
       try {
         this.emit('group-update', group);
@@ -414,6 +404,7 @@ export class WhatsAppService extends EventEmitter {
    * Handle presence updates
    */
   private async handlePresenceUpdate(presenceUpdate: BaileysEventMap['presence.update']): Promise<void> {
+    debugLogger.debug('Received presence.update event', { presenceUpdate });
     try {
       this.emit('presence-update', presenceUpdate);
       logger.debug('Presence updated', { 

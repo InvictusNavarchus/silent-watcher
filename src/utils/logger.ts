@@ -4,6 +4,7 @@ import { existsSync, mkdirSync } from 'fs';
 
 // Lazy logger initialization to avoid issues during testing
 let _logger: winston.Logger | null = null;
+let _debugLogger: winston.Logger | null = null;
 
 /**
  * Parse log size string (e.g., "10m", "1g", "500k") to bytes
@@ -89,6 +90,44 @@ function createLogger(): winston.Logger {
   return _logger;
 }
 
+function createDebugLogger(): winston.Logger {
+  if (_debugLogger) {
+    return _debugLogger;
+  }
+
+  const logsDir = join(process.cwd(), 'data', 'logs');
+  if (!existsSync(logsDir)) {
+    mkdirSync(logsDir, { recursive: true });
+  }
+
+  const logMaxSize = process.env.LOG_MAX_SIZE || '50m'; // Larger size for debug logs
+  const logMaxFiles = process.env.LOG_MAX_FILES ? parseInt(process.env.LOG_MAX_FILES, 10) : 20;
+  const maxSizeBytes = parseLogSize(logMaxSize);
+
+  // Custom format for debug logs to ensure all data is captured
+  const debugLogFormat = winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
+    winston.format.json()
+  );
+
+  _debugLogger = winston.createLogger({
+    level: 'debug',
+    format: debugLogFormat,
+    transports: [
+      new winston.transports.File({
+        filename: join(logsDir, 'debug.log'),
+        maxsize: maxSizeBytes,
+        maxFiles: logMaxFiles,
+        tailable: true,
+      }),
+    ],
+    exitOnError: false, // Prevent exit on error
+  });
+
+  return _debugLogger;
+}
+
 // Create a proxy logger that lazily initializes the real logger
 export const logger = {
   info: (message: string, meta?: any) => createLogger().info(message, meta),
@@ -96,6 +135,17 @@ export const logger = {
   warn: (message: string, meta?: any) => createLogger().warn(message, meta),
   debug: (message: string, meta?: any) => createLogger().debug(message, meta),
   end: () => createLogger().end(),
+};
+
+// Create a dedicated, lazily-initialized logger for detailed debug information
+export const debugLogger = {
+  trace: (message: string, meta?: any) => createDebugLogger().debug(message, { ...meta, level: 'trace' }),
+  debug: (message: string, meta?: any) => createDebugLogger().debug(message, meta),
+  info: (message: string, meta?: any) => createDebugLogger().info(message, meta),
+  warn: (message: string, meta?: any) => createDebugLogger().warn(message, meta),
+  error: (message: string, meta?: any) => createDebugLogger().error(message, meta),
+  fatal: (message: string, meta?: any) => createDebugLogger().error(message, { ...meta, level: 'fatal' }),
+  child: () => debugLogger, // Return the same logger for child instances
 };
 
 // Add request logging helper
@@ -147,27 +197,32 @@ export const logError = (error: Error, context?: Record<string, unknown>): Promi
  * Close all logger transports
  */
 export function closeLogger(): Promise<void> {
-  if (!_logger) {
+  if (!_logger && !_debugLogger) {
     return Promise.resolve();
   }
-  
+
   return new Promise((resolve) => {
-    const transports = _logger?.transports || [];
+    const mainTransports = _logger?.transports || [];
+    const debugTransports = _debugLogger?.transports || [];
+    const allTransports = [...mainTransports, ...debugTransports];
     let closedTransports = 0;
-    
-    if (transports.length === 0) {
+
+    if (allTransports.length === 0) {
+      _logger = null;
+      _debugLogger = null;
       return resolve();
     }
-    
+
     const handleClose = () => {
       closedTransports++;
-      if (closedTransports >= transports.length) {
+      if (closedTransports >= allTransports.length) {
         _logger = null;
+        _debugLogger = null;
         resolve();
       }
     };
-    
-    for (const transport of transports) {
+
+    for (const transport of allTransports) {
       if (transport.close) {
         transport.close();
       }
