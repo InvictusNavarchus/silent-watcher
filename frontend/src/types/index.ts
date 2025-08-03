@@ -34,6 +34,9 @@ export interface Message {
   isEphemeral: boolean;
   ephemeralDuration?: number;
   isViewOnce: boolean;
+originalMessageId?: string;
+  isEdited: boolean;
+  isDeleted: boolean;
   reactions: string; // JSON string of reactions
   createdAt: number;
   updatedAt: number;

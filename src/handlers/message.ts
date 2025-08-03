@@ -22,6 +22,8 @@ export class MessageHandler {
   private databaseService: DatabaseService;
   private mediaService: MediaService;
   private config: Config;
+  private recentlyProcessedEdits = new Set<string>();
+  private recentlyProcessedDeletes = new Set<string>();
 
   constructor(
     databaseService: DatabaseService, 
@@ -40,9 +42,52 @@ export class MessageHandler {
     debugLogger.debug('Starting message processing', { waMessage });
     try {
       if (!waMessage.key.id || !waMessage.key.remoteJid) {
-        logger.warn('Invalid message received - missing key data', { waMessage });
-        debugLogger.warn('Invalid message received - missing key data', { waMessage });
+        logger.warn('Invalid message received, skipping', { waMessage });
+        debugLogger.warn('Invalid message received, skipping', { waMessage });
         return;
+      }
+
+      // Handle message edits delivered via protocolMessage
+      if (waMessage.message?.protocolMessage) {
+        const protocolMsg = waMessage.message.protocolMessage;
+        switch (protocolMsg.type) {
+          case proto.Message.ProtocolMessage.Type.MESSAGE_EDIT:
+            {
+              if (protocolMsg.editedMessage) {
+                const originalMessageId = protocolMsg.key?.id;
+                if (originalMessageId) {
+                  const existingMessage = await this.databaseService.getMessageById(originalMessageId);
+                  if (existingMessage) {
+                    await this.handleMessageEdit(originalMessageId, protocolMsg.editedMessage, existingMessage);
+                  } else {
+                    logger.warn('Message edit received for unknown message', { originalMessageId });
+                    debugLogger.warn('Message edit for unknown message', { originalMessageId, waMessage });
+                  }
+                }
+              }
+            }
+            break;
+
+          case proto.Message.ProtocolMessage.Type.REVOKE:
+            {
+              const originalMessageId = protocolMsg.key?.id;
+              if (originalMessageId) {
+                const existingMessage = await this.databaseService.getMessageById(originalMessageId);
+                if (existingMessage) {
+                  await this.handleMessageDeletion(originalMessageId, existingMessage);
+                } else {
+                  logger.warn('Message deletion received for unknown message', { originalMessageId });
+                  debugLogger.warn('Message deletion for unknown message', { originalMessageId, waMessage });
+                }
+              }
+            }
+            break;
+
+          default:
+            logger.warn('Unhandled protocol message type received, skipping', { type: protocolMsg.type, waMessage });
+            debugLogger.warn('Unhandled protocol message type received, skipping', { type: protocolMsg.type, waMessage });
+        }
+        return; // Stop further processing for this event
       }
 
       // Skip processing very old messages (older than 1 hour) during initial sync
@@ -123,23 +168,37 @@ export class MessageHandler {
       // Check if proto is available before using it
       if (proto?.WebMessageInfo?.StubType) {
         // Use the proper enum if available
-        if (update.update?.messageStubType === proto.WebMessageInfo.StubType.REVOKE) {
-          await this.handleMessageDeletion(messageId, existingMessage);
+        if (update.update?.messageStubType === proto.WebMessageInfo.StubType.REVOKE || (update.update?.message === null && update.update?.messageStubType === 1)) {
+          if (!this.recentlyProcessedDeletes.has(messageId)) {
+            await this.handleMessageDeletion(messageId, existingMessage);
+          } else {
+            debugLogger.debug('Skipping duplicate message deletion from messages.update', { messageId });
+          }
           return;
         }
       } else {
         logger.warn('proto.WebMessageInfo.StubType is not available, falling back to numeric stubType comparison', { messageId });
         // Fallback to direct comparison if proto.WebMessageInfo is not available
         // REVOKE stub type is 7
-        if (update.update?.messageStubType === 7) {
-          await this.handleMessageDeletion(messageId, existingMessage);
+        if (update.update?.messageStubType === 7 || (update.update?.message === null && update.update?.messageStubType === 1)) {
+          if (!this.recentlyProcessedDeletes.has(messageId)) {
+            await this.handleMessageDeletion(messageId, existingMessage);
+          } else {
+            debugLogger.debug('Skipping duplicate message deletion from messages.update', { messageId });
+          }
           return;
         }
       }
 
       // Handle message edit
-      if (update.update?.message) {
-        await this.handleMessageEdit(messageId, update.update.message, existingMessage);
+      if (update.update?.message?.editedMessage) {
+        const newContent = this.extractMessageContent({ message: update.update.message } as WAMessage);
+        const cacheKey = `${messageId}:${newContent}`;
+        if (!this.recentlyProcessedEdits.has(cacheKey)) {
+          await this.handleMessageEdit(messageId, update.update.message, existingMessage);
+        } else {
+          debugLogger.debug('Skipping duplicate message edit from messages.update', { messageId });
+        }
         return;
       }
 
@@ -303,7 +362,9 @@ export class MessageHandler {
       isEphemeral,
       ephemeralDuration: ephemeralDuration ?? undefined,
       isViewOnce,
-      reactions: '[]'
+      reactions: '[]',
+      isEdited: false,
+      isDeleted: false
     };
   }
 
@@ -332,7 +393,7 @@ export class MessageHandler {
    * Extract text content from WhatsApp message
    */
   private extractMessageContent(waMessage: WAMessage): string {
-    const message = waMessage.message;
+    const message = waMessage.message?.editedMessage?.message || waMessage.message;
     if (!message) return '';
 
     if (message.conversation) return message.conversation;
@@ -434,35 +495,85 @@ export class MessageHandler {
   /**
    * Handle message deletion
    */
-  private async handleMessageDeletion(messageId: string, existingMessage: Message): Promise<void> {
-    // Create deletion event
-    await this.databaseService.createMessageEvent({
-      id: generateId(),
-      messageId,
-      eventType: MessageEventType.DELETED,
-      oldContent: existingMessage.content,
-      timestamp: getCurrentTimestamp(),
-      metadata: JSON.stringify({ chatId: existingMessage.chatId })
-    });
+  private async handleMessageDeletion(originalMessageId: string, existingMessage: Message): Promise<void> {
+    // Deduplication logic
+    if (this.recentlyProcessedDeletes.has(originalMessageId)) {
+      debugLogger.debug('Skipping duplicate message deletion processing', { originalMessageId });
+      return;
+    }
+    this.recentlyProcessedDeletes.add(originalMessageId);
+    setTimeout(() => this.recentlyProcessedDeletes.delete(originalMessageId), 5000); // 5-second window
 
-    // Note: We keep the message in database for audit purposes
-    // but mark it as deleted in the event log
-    logger.info('Message deletion recorded', { messageId });
+    const deletionMessage: Omit<Message, 'createdAt' | 'updatedAt'> = {
+      id: generateId(),
+      chatId: existingMessage.chatId,
+      senderId: existingMessage.senderId,
+      content: '[Message deleted]',
+      messageType: existingMessage.messageType,
+      timestamp: getCurrentTimestamp(),
+      isFromMe: existingMessage.isFromMe,
+      quotedMessageId: existingMessage.quotedMessageId,
+      originalMessageId: originalMessageId,
+      mediaPath: existingMessage.mediaPath,
+      mediaType: existingMessage.mediaType,
+      mediaMimeType: existingMessage.mediaMimeType,
+      mediaSize: existingMessage.mediaSize,
+      isForwarded: existingMessage.isForwarded,
+      forwardedFrom: existingMessage.forwardedFrom,
+      isEphemeral: existingMessage.isEphemeral,
+      ephemeralDuration: existingMessage.ephemeralDuration,
+      isViewOnce: existingMessage.isViewOnce,
+      reactions: '[]',
+      isDeleted: true,
+      isEdited: false,
+    };
+
+    await this.databaseService.createMessageWithDependencies(deletionMessage);
+    logger.info('Message deletion recorded as new entry', { originalMessageId, newId: deletionMessage.id });
   }
 
   /**
    * Handle message edit
    */
-  private async handleMessageEdit(messageId: string, newMessage: any, existingMessage: Message): Promise<void> {
+  private async handleMessageEdit(originalMessageId: string, newMessage: any, existingMessage: Message): Promise<void> {
     const newContent = this.extractMessageContent({ message: newMessage } as WAMessage);
-    
-    if (newContent !== existingMessage.content) {
-      // Update message content
-      await this.databaseService.updateMessage(messageId, {
-        content: newContent
-      });
 
-      logger.info('Message edit recorded', { messageId, oldLength: existingMessage.content.length, newLength: newContent.length });
+    // Deduplication logic
+    const cacheKey = `${originalMessageId}:${newContent}`;
+    if (this.recentlyProcessedEdits.has(cacheKey)) {
+      debugLogger.debug('Skipping duplicate message edit processing', { originalMessageId, newContent });
+      return;
+    }
+    this.recentlyProcessedEdits.add(cacheKey);
+    setTimeout(() => this.recentlyProcessedEdits.delete(cacheKey), 5000); // 5-second window
+
+    if (newContent !== existingMessage.content) {
+      const editedMessage: Omit<Message, 'createdAt' | 'updatedAt'> = {
+        id: generateId(),
+        chatId: existingMessage.chatId,
+        senderId: existingMessage.senderId,
+        content: newContent,
+        messageType: existingMessage.messageType,
+        timestamp: getCurrentTimestamp(),
+        isFromMe: existingMessage.isFromMe,
+        quotedMessageId: existingMessage.quotedMessageId,
+        originalMessageId: originalMessageId,
+        mediaPath: existingMessage.mediaPath,
+        mediaType: existingMessage.mediaType,
+        mediaMimeType: existingMessage.mediaMimeType,
+        mediaSize: existingMessage.mediaSize,
+        isForwarded: existingMessage.isForwarded,
+        forwardedFrom: existingMessage.forwardedFrom,
+        isEphemeral: existingMessage.isEphemeral,
+        ephemeralDuration: existingMessage.ephemeralDuration,
+        isViewOnce: existingMessage.isViewOnce,
+        reactions: existingMessage.reactions,
+        isEdited: true,
+        isDeleted: false,
+      };
+
+      await this.databaseService.createMessageWithDependencies(editedMessage);
+      logger.info('Message edit recorded as new entry', { originalMessageId, newId: editedMessage.id });
     }
   }
 
