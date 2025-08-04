@@ -1,4 +1,4 @@
-export default {
+module.exports = {
   apps: [{
     name: 'silent-watcher',
     script: 'dist/main.js',
