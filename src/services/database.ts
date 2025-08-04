@@ -7,7 +7,8 @@ import type {
   MessageEvent,
   MessageQuery,
   PaginatedResponse,
-  Config
+  Config,
+  Media
 } from '@/types/index.js';
 import { MessageEventType } from '@/types/index.js';
 
@@ -265,6 +266,78 @@ export class DatabaseService {
     }
   }
 
+  /**
+   * Atomically updates message details and retrieves the updated message.
+   * This method ensures that the update and subsequent retrieval are performed
+   * within a single database transaction to guarantee data consistency.
+   *
+   * @param id The ID of the message to update.
+   * @param updates An object containing the fields to update.
+   * @returns The updated message object, or null if the message doesn't exist.
+   */
+  public async updateMessageDetails(
+    id: string,
+    updates: Partial<Omit<Message, 'id' | 'createdAt' | 'updatedAt'>>
+  ): Promise<Message | null> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    return this.connection.transaction((db: Database) => {
+      const getStmt = db.prepare('SELECT * FROM messages WHERE id = ?');
+      const existingRow = getStmt.get(id) as any;
+
+      if (!existingRow) {
+        logger.warn('Attempted to update non-existent message', { messageId: id });
+        return null;
+      }
+
+      const existingMessage = this.mapRowToMessage(existingRow);
+      const updatedAt = getCurrentTimestamp();
+
+      const updateStmt = db.prepare(`
+        UPDATE messages SET
+          content = ?,
+          message_type = ?,
+          media_path = ?,
+          media_type = ?,
+          media_mime_type = ?,
+          media_size = ?,
+          is_view_once = ?,
+          updated_at = ?
+        WHERE id = ?
+      `);
+
+      const isViewOnce =
+        updates.isViewOnce !== undefined
+          ? updates.isViewOnce
+            ? 1
+            : 0
+          : existingMessage.isViewOnce
+            ? 1
+            : 0;
+
+      updateStmt.run(
+        updates.content ?? existingMessage.content,
+        updates.messageType ?? existingMessage.messageType,
+        updates.mediaPath ?? existingMessage.mediaPath,
+        updates.mediaType ?? existingMessage.mediaType,
+        updates.mediaMimeType ?? existingMessage.mediaMimeType,
+        updates.mediaSize ?? existingMessage.mediaSize,
+        isViewOnce,
+        updatedAt,
+        id
+      );
+
+      const updatedRow = getStmt.get(id) as any;
+      if (!updatedRow) {
+        // This should not happen within a transaction if the initial get succeeded
+        logger.error('Failed to retrieve message after update within transaction', { messageId: id });
+        return null;
+      }
+
+      return this.mapRowToMessage(updatedRow);
+    });
+  }
+ 
   public async deleteMessage(id: string): Promise<boolean> {
     if (!this.db) throw new Error('Database not initialized');
 
@@ -477,6 +550,46 @@ export class DatabaseService {
     }
   }
 
+  public async createMedia(media: Omit<Media, 'createdAt'>): Promise<Media> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    const fullMedia: Media = {
+      ...media,
+      createdAt: getCurrentTimestamp()
+    };
+
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO media (
+          id, message_id, file_name, file_path, mime_type, size,
+          width, height, duration, thumbnail_path, is_compressed, original_size, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      stmt.run(
+        fullMedia.id,
+        fullMedia.messageId,
+        fullMedia.fileName,
+        fullMedia.filePath,
+        fullMedia.mimeType,
+        fullMedia.size,
+        fullMedia.width,
+        fullMedia.height,
+        fullMedia.duration,
+        fullMedia.thumbnailPath,
+        fullMedia.isCompressed ? 1 : 0,
+        fullMedia.originalSize,
+        fullMedia.createdAt
+      );
+
+      logger.debug('Media record created', { mediaId: fullMedia.id, messageId: fullMedia.messageId });
+      return fullMedia;
+    } catch (error) {
+      logger.error('Failed to create media record', { error, mediaId: media.id });
+      throw error;
+    }
+  }
+
   // Helper methods
   private mapRowToMessage(row: any): Message {
     return {
@@ -517,5 +630,13 @@ export class DatabaseService {
       metadata: row.metadata || '{}',
       createdAt: row.created_at
     };
+  }
+
+  /**
+   * Execute operations within a transaction
+   */
+  public executeTransaction<T>(fn: (db: Database) => T): T {
+    if (!this.db) throw new Error('Database not initialized');
+    return this.connection.transaction(fn);
   }
 }

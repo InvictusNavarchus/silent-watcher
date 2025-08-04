@@ -10,12 +10,12 @@ import { MediaType } from '@/types/index.js';
 
 export class MediaService {
   private config: Config;
-  // private databaseService: DatabaseService;
+  private databaseService: DatabaseService;
   private mediaBasePath: string;
 
-  constructor(config: Config, _databaseService: DatabaseService) {
+  constructor(config: Config, databaseService: DatabaseService) {
     this.config = config;
-    // this.databaseService = databaseService;
+    this.databaseService = databaseService;
     this.mediaBasePath = join(process.cwd(), 'data', 'media');
   }
 
@@ -77,21 +77,25 @@ export class MediaService {
       let isCompressed = false;
       let originalSize = buffer.length;
 
-      // Process image compression and thumbnails
+      // Process image compression
       if (message.mediaType === MediaType.IMAGE && this.config.media.compressionEnabled) {
-        const processed = await this.processImage(buffer, fullPath);
+        const processed = await this.processImage(buffer);
         finalBuffer = processed.buffer;
-        thumbnailPath = processed.thumbnailPath;
         isCompressed = processed.isCompressed;
+      }
+
+      // Write file to disk
+      await writeFile(fullPath, finalBuffer);
+
+      // Set thumbnail path for images to be the main image path
+      if (message.mediaType === MediaType.IMAGE) {
+        thumbnailPath = fullPath;
       }
 
       // Process video thumbnails
       if (message.mediaType === MediaType.VIDEO) {
         thumbnailPath = await this.generateVideoThumbnail(buffer, fullPath);
       }
-
-      // Write file to disk
-      await writeFile(fullPath, finalBuffer);
 
       // Create media record in database
       const mediaRecord: Omit<Media, 'createdAt'> = {
@@ -130,20 +134,22 @@ export class MediaService {
   /**
    * Process image compression and thumbnail generation
    */
-  private async processImage(buffer: Buffer, filePath: string): Promise<{
+  private async processImage(buffer: Buffer): Promise<{
     buffer: Buffer;
-    thumbnailPath?: string;
     isCompressed: boolean;
   }> {
     try {
       const image = sharp(buffer);
       const metadata = await image.metadata();
-      
       let processedBuffer = buffer;
       let isCompressed = false;
 
       // Compress if image is large
-      if (metadata.width && metadata.height && (metadata.width > 1920 || metadata.height > 1080)) {
+      if (
+        metadata.width &&
+        metadata.height &&
+        (metadata.width > 1920 || metadata.height > 1080)
+      ) {
         processedBuffer = await image
           .resize(1920, 1080, { fit: 'inside', withoutEnlargement: true })
           .jpeg({ quality: 85 })
@@ -151,23 +157,15 @@ export class MediaService {
         isCompressed = true;
       }
 
-      // Generate thumbnail
-      const thumbnailPath = filePath.replace(/\.[^.]+$/, '_thumb.jpg');
-      await image
-        .resize(200, 200, { fit: 'inside' })
-        .jpeg({ quality: 70 })
-        .toFile(thumbnailPath);
-
       return {
         buffer: processedBuffer,
-        thumbnailPath,
-        isCompressed
+        isCompressed,
       };
     } catch (error) {
       logger.warn('Image processing failed, using original', { error });
       return {
         buffer,
-        isCompressed: false
+        isCompressed: false,
       };
     }
   }
@@ -309,14 +307,7 @@ export class MediaService {
    * Create media record in database
    */
   private async createMediaRecord(media: Omit<Media, 'createdAt'>): Promise<void> {
-    // This would be implemented in the database service
-    // For now, we'll just log it
-    logger.debug('Media record created', {
-      mediaId: media.id,
-      messageId: media.messageId,
-      fileName: media.fileName,
-      size: formatBytes(media.size)
-    });
+    await this.databaseService.createMedia(media);
   }
 
   /**
