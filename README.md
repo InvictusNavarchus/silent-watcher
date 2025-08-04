@@ -12,9 +12,8 @@ A WhatsApp bot using Baileys that silently monitors and logs all WhatsApp activi
 
 ### ✅ Currently Working
 - 🔍 **Basic Message Monitoring**: Captures messages and logs them to database and files
-- �️ **Database Storage**: SQLite database with message storage
-- � **File Logging**: Comprehensive logging to files in `data/logs/`
-
+- 🗄️ **Database Storage**: SQLite database with message storage
+- 📝 **File Logging**: Comprehensive logging to files in `data/logs/`
 ### 🚧 Planned/In Development
 - 📊 **Real-time Dashboard**: React-based web interface *(not working)*
 - 📱 **Media Handling**: Automatic download and storage of media files *(partially working)*
