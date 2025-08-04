@@ -1,5 +1,8 @@
 # Silent Watcher
 
+[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](https://github.com/InvictusNavarchus/silent-watcher/releases)
+[![License](https://img.shields.io/badge/license-MPL--2.0-orange.svg)](https://www.mozilla.org/en-US/MPL/2.0/)
+
 A robust, production-ready WhatsApp bot using Baileys that silently monitors and logs all WhatsApp activities with comprehensive audit trails and real-time web interface.
 
 ## Features
