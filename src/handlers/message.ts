@@ -19,6 +19,7 @@ import {
 } from '@/types/index.js';
 
 export class MessageHandler {
+  private static readonly BOT_SENDER_ID = 'me@bot.local';
   private databaseService: DatabaseService;
   private mediaService: MediaService;
   private config: Config;
@@ -119,7 +120,7 @@ export class MessageHandler {
       let contactName: string | undefined;
       let phoneNumber: string | undefined;
       
-      if (message.senderId === 'me@bot.local') {
+      if (message.senderId === MessageHandler.BOT_SENDER_ID) {
         contactName = 'Silent Watcher Bot';
       } else if (message.senderId.includes('@s.whatsapp.net')) {
         phoneNumber = message.senderId.split('@')[0];
@@ -322,8 +323,8 @@ export class MessageHandler {
     if (waMessage.key.fromMe) {
       // For messages from the bot, use a consistent sender ID
       senderId = chatId.includes('@g.us')
-        ? (waMessage.key.participant ? normalizeJid(waMessage.key.participant) : 'me@bot.local')
-        : 'me@bot.local';
+        ? (waMessage.key.participant ? normalizeJid(waMessage.key.participant) : MessageHandler.BOT_SENDER_ID)
+        : MessageHandler.BOT_SENDER_ID;
     } else {
       senderId = normalizeJid(waMessage.key.participant || waMessage.key.remoteJid!);
     }
@@ -621,7 +622,7 @@ export class MessageHandler {
       key: {
         id: originalMessageId,
         remoteJid: chatId,
-        fromMe: senderId === 'me@bot.local',
+        fromMe: senderId === MessageHandler.BOT_SENDER_ID,
         participant: senderId,
       },
       message: quotedMessage,
