@@ -631,4 +631,12 @@ export class DatabaseService {
       createdAt: row.created_at
     };
   }
+
+  /**
+   * Execute operations within a transaction
+   */
+  public executeTransaction<T>(fn: (db: Database) => T): T {
+    if (!this.db) throw new Error('Database not initialized');
+    return this.connection.transaction(fn);
+  }
 }

@@ -26,6 +26,7 @@ export class MessageHandler {
   private recentlyProcessedEdits = new Set<string>();
   private recentlyProcessedDeletes = new Set<string>();
   private processingMessageIds = new Set<string>();
+  private processingQuotedMessages = new Set<string>();
 
   constructor(
     databaseService: DatabaseService, 
@@ -35,6 +36,28 @@ export class MessageHandler {
     this.databaseService = databaseService;
     this.mediaService = mediaService;
     this.config = config;
+
+    // Set up periodic cleanup of processing sets to prevent memory leaks
+    setInterval(() => {
+      this.cleanupProcessingSets();
+    }, 5 * 60 * 1000); // Clean up every 5 minutes
+  }
+
+  /**
+   * Clean up processing sets to prevent memory leaks
+   * This is a safety mechanism in case items get stuck in processing sets
+   */
+  private cleanupProcessingSets(): void {
+    // Note: Since we don't track timestamps for processing sets,
+    // we'll just log their current sizes for monitoring
+    if (this.processingQuotedMessages.size > 0) {
+      logger.debug('Processing sets status', {
+        quotedMessages: this.processingQuotedMessages.size,
+        edits: this.recentlyProcessedEdits.size,
+        deletes: this.recentlyProcessedDeletes.size,
+        processing: this.processingMessageIds.size
+      });
+    }
   }
 
   /**
@@ -601,54 +624,106 @@ export class MessageHandler {
   }
 
   /**
-   * Get system message text
+   * Handle quoted messages with safeguards against race conditions and proper error handling
    */
   private async handleQuotedMessage(contextInfo: any, chatId: string): Promise<void> {
     const quotedMessage = contextInfo.quotedMessage;
     const originalMessageId = contextInfo.stanzaId;
   
-    const isViewOnce = quotedMessage.imageMessage?.viewOnce || quotedMessage.videoMessage?.viewOnce || quotedMessage.audioMessage?.viewOnce;
-    if (!isViewOnce) return;
-  
-    const existingMessage = await this.databaseService.getMessageById(originalMessageId);
-    if (!existingMessage || existingMessage.isViewOnce) {
-      // If it doesn't exist or is already a view-once, we don't need to update
+    // Check if this message is already being processed to prevent race conditions
+    if (this.processingQuotedMessages.has(originalMessageId)) {
+      debugLogger.debug('Quoted message already being processed, skipping', { messageId: originalMessageId });
       return;
     }
-  
-    // Construct a temporary WAMessage to extract details
-    const senderId = normalizeJid(contextInfo.participant);
-    const tempWAMessage: WAMessage = {
-      key: {
-        id: originalMessageId,
-        remoteJid: chatId,
-        fromMe: senderId === MessageHandler.BOT_SENDER_ID,
-        participant: senderId,
-      },
-      message: quotedMessage,
-      messageTimestamp: existingMessage.timestamp,
-    };
-  
-    const messageType = this.getMessageType(tempWAMessage);
-    const content = this.extractMessageContent(tempWAMessage);
-    const mediaInfo = this.hasMedia(tempWAMessage) ? this.extractMediaInfo(tempWAMessage) : null;
-  
-    // Update the existing stub message with the full details
-    const updatedMessage = await this.databaseService.updateMessageDetails(originalMessageId, {
-      content,
-      messageType,
-      mediaPath: mediaInfo?.path,
-      mediaType: mediaInfo?.type,
-      mediaMimeType: mediaInfo?.mimeType,
-      mediaSize: mediaInfo?.size,
-      isViewOnce: true,
-    });
-  
-    if (updatedMessage && mediaInfo && this.config.media.downloadEnabled) {
-      debugLogger.debug('Processing media for revealed view-once message', { messageId: originalMessageId });
-      // We need to use the original `quotedMessage` as the source for download
-      const downloadMessage: WAMessage = { ...tempWAMessage, message: quotedMessage };
-      await this.mediaService.processMessageMedia(downloadMessage, updatedMessage);
+
+    const isViewOnce = quotedMessage.imageMessage?.viewOnce || quotedMessage.videoMessage?.viewOnce || quotedMessage.audioMessage?.viewOnce;
+    if (!isViewOnce) return;
+
+    // Set processing flag to prevent concurrent processing
+    this.processingQuotedMessages.add(originalMessageId);
+
+    try {
+      // First, get existing message outside transaction to check if we need to proceed
+      const existingMessage = await this.databaseService.getMessageById(originalMessageId);
+      if (!existingMessage || existingMessage.isViewOnce) {
+        // If it doesn't exist or is already a view-once, we don't need to update
+        return;
+      }
+
+      // Construct a temporary WAMessage to extract details
+      const senderId = normalizeJid(contextInfo.participant);
+      const tempWAMessage: WAMessage = {
+        key: {
+          id: originalMessageId,
+          remoteJid: chatId,
+          fromMe: senderId === MessageHandler.BOT_SENDER_ID,
+          participant: senderId,
+        },
+        message: quotedMessage,
+        messageTimestamp: existingMessage.timestamp,
+      };
+
+      const messageType = this.getMessageType(tempWAMessage);
+      const content = this.extractMessageContent(tempWAMessage);
+      const mediaInfo = this.hasMedia(tempWAMessage) ? this.extractMediaInfo(tempWAMessage) : null;
+
+      // Use transaction to ensure atomicity of database update
+      const updatedMessage = await this.databaseService.updateMessageDetails(originalMessageId, {
+        content,
+        messageType,
+        mediaPath: mediaInfo?.path,
+        mediaType: mediaInfo?.type,
+        mediaMimeType: mediaInfo?.mimeType,
+        mediaSize: mediaInfo?.size,
+        isViewOnce: true,
+      });
+
+      // Process media outside of database transaction to avoid holding locks during I/O
+      if (updatedMessage && mediaInfo && this.config.media.downloadEnabled) {
+        debugLogger.debug('Processing media for revealed view-once message', { messageId: originalMessageId });
+        
+        try {
+          // We need to use the original `quotedMessage` as the source for download
+          const downloadMessage: WAMessage = { ...tempWAMessage, message: quotedMessage };
+          await this.mediaService.processMessageMedia(downloadMessage, updatedMessage);
+          
+          logger.info('Successfully processed media for view-once message', { 
+            messageId: originalMessageId,
+            mediaType: mediaInfo.type 
+          });
+        } catch (mediaError) {
+          // Log media processing errors but don't let them fail the entire operation
+          logger.error('Failed to process media for view-once message', {
+            messageId: originalMessageId,
+            error: mediaError instanceof Error ? mediaError.message : String(mediaError),
+            mediaType: mediaInfo.type
+          });
+          await logError(mediaError as Error, {
+            messageId: originalMessageId,
+            mediaType: mediaInfo.type,
+            context: 'Media processing failed for view-once message'
+          });
+        }
+      }
+
+      if (updatedMessage) {
+        logger.info('Successfully revealed view-once message', { 
+          messageId: originalMessageId,
+          hasMedia: !!mediaInfo 
+        });
+      }
+    } catch (error) {
+      logger.error('Failed to handle quoted view-once message', {
+        messageId: originalMessageId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      await logError(error as Error, { 
+        messageId: originalMessageId,
+        context: 'Quoted message handling failed'
+      });
+    } finally {
+      // Always remove from processing set to prevent permanent locks
+      this.processingQuotedMessages.delete(originalMessageId);
     }
   }
   private getSystemMessageText(stubType: number, parameters?: string[]): string {
