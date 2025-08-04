@@ -88,4 +88,4 @@ See `.env.example` for all available configuration options.
 
 ## License
 
-UNLICENSED - All rights reserved.
+This project is licensed under the [Mozilla Public License 2.0 (MPL-2.0)](https://www.mozilla.org/en-US/MPL/2.0/).
