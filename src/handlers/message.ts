@@ -650,8 +650,21 @@ export class MessageHandler {
         return;
       }
 
+      // Validate that we can determine the sender of the quoted message
+      const senderJid = contextInfo.participant || contextInfo.remoteJid;
+      if (!senderJid) {
+        logger.warn('Cannot determine sender for quoted view-once message, skipping', { 
+          messageId: originalMessageId,
+          contextInfo: {
+            participant: contextInfo.participant,
+            remoteJid: contextInfo.remoteJid
+          }
+        });
+        return;
+      }
+
       // Construct a temporary WAMessage to extract details
-      const senderId = normalizeJid(contextInfo.participant || contextInfo.remoteJid || chatId);
+      const senderId = normalizeJid(senderJid);
       const tempWAMessage: WAMessage = {
         key: {
           id: originalMessageId,
