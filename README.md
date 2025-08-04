@@ -1,6 +1,6 @@
 # Silent Watcher
 
-[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](https://github.com/InvictusNavarchus/silent-watcher/releases)
+[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)](https://github.com/InvictusNavarchus/silent-watcher/releases)
 [![License](https://img.shields.io/badge/license-MPL--2.0-orange.svg)](https://www.mozilla.org/en-US/MPL/2.0/)
 [![Development Status](https://img.shields.io/badge/status-heavily%20under%20development-red.svg)](https://github.com/InvictusNavarchus/silent-watcher)
 
@@ -14,12 +14,12 @@ A WhatsApp bot using Baileys that silently monitors and logs all WhatsApp activi
 - 🔍 **Basic Message Monitoring**: Captures messages and logs them to database and files
 - 🗄️ **Database Storage**: SQLite database with message storage
 - 📝 **File Logging**: Comprehensive logging to files in `data/logs/`
+- 🚀 **Production Deployment**: PM2 process management
 ### 🚧 Planned/In Development
 - 📊 **Real-time Dashboard**: React-based web interface *(not working)*
 - 📱 **Media Handling**: Automatic download and storage of media files *(partially working)*
 - 🔐 **Secure Access**: JWT-based authentication *(not implemented)*
-- 🚀 **Production Deployment**: PM2 configuration *(not working)*
-- 🐳 **Docker Support**: Containerized deployment *(not working)*
+-  **Docker Support**: Containerized deployment *(not working)*
 - 🧪 **Complete Test Coverage**: Comprehensive test suite *(in progress)*
 
 ## Tech Stack
@@ -41,15 +41,18 @@ A WhatsApp bot using Baileys that silently monitors and logs all WhatsApp activi
 
 ## Current Usage
 
-**⚠️ Important**: Currently, the only working way to use this bot is:
+**⚠️ Important**: Currently, the main working functionality is the backend monitoring service.
 
-1. **Backend Only**: Run the backend service to monitor WhatsApp messages
-2. **Manual Data Access**: View captured data through:
+### Available Deployment Methods:
+
+1. **Direct Node.js**: Run the backend service directly
+2. **PM2 Process Management**: Use PM2 for production deployment with auto-restart
+3. **Manual Data Access**: View captured data through:
    - Log files in `data/logs/` directory
    - SQLite database at `data/database/your-database.db`
    - Use any SQLite browser/tool to query the database
 
-The web frontend, Docker deployment, and PM2 ecosystem are not functional yet.
+**Note**: The web frontend and Docker deployment are not functional yet.
 
 ## Quick Start (Backend Only)
 
@@ -83,9 +86,19 @@ cp .env.example .env
 pnpm build
 ```
 
-5. Start the bot (backend only):
+5. Start the bot:
+
+**Option A - Direct Node.js:**
 ```bash
 pnpm start
+```
+
+**Option B - PM2 (Production):**
+```bash
+pnpm pm2:start    # Start with PM2
+pnpm pm2:logs     # View logs
+pnpm pm2:stop     # Stop the service
+pnpm pm2:restart  # Restart the service
 ```
 
 ### Monitoring the Bot
@@ -114,7 +127,6 @@ pnpm lint
 
 - ❌ **Frontend**: React web interface doesn't start
 - ❌ **Docker**: Docker compose configuration fails
-- ❌ **PM2**: Ecosystem configuration not working
 - ❌ **Tests**: Many tests are incomplete or failing
 - ⚠️ **Media Download**: Partially implemented, may not work for all media types
 
@@ -124,7 +136,6 @@ This project is in active development. Contributions are welcome, especially for
 
 - Fixing the frontend React application
 - Implementing proper Docker support
-- Completing the PM2 ecosystem configuration
 - Expanding test coverage
 - Improving media handling functionality
 
