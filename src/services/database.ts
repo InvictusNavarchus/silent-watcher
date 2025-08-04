@@ -266,43 +266,76 @@ export class DatabaseService {
     }
   }
 
-  public async updateMessageDetails(id: string, updates: Partial<Omit<Message, 'id' | 'createdAt' | 'updatedAt'>>): Promise<Message | null> {
+  /**
+   * Atomically updates message details and retrieves the updated message.
+   * This method ensures that the update and subsequent retrieval are performed
+   * within a single database transaction to guarantee data consistency.
+   *
+   * @param id The ID of the message to update.
+   * @param updates An object containing the fields to update.
+   * @returns The updated message object, or null if the message doesn't exist.
+   */
+  public async updateMessageDetails(
+    id: string,
+    updates: Partial<Omit<Message, 'id' | 'createdAt' | 'updatedAt'>>
+  ): Promise<Message | null> {
     if (!this.db) throw new Error('Database not initialized');
-  
-    const existing = await this.getMessageById(id);
-    if (!existing) return null;
-  
-    const fullUpdates = {
-      ...updates,
-      updatedAt: getCurrentTimestamp(),
-    };
-  
-    const stmt = this.db.prepare(`
-      UPDATE messages SET
-        content = ?,
-        message_type = ?,
-        media_path = ?,
-        media_type = ?,
-        media_mime_type = ?,
-        media_size = ?,
-        is_view_once = ?,
-        updated_at = ?
-      WHERE id = ?
-    `);
-  
-    stmt.run(
-      fullUpdates.content ?? existing.content,
-      fullUpdates.messageType ?? existing.messageType,
-      fullUpdates.mediaPath ?? existing.mediaPath,
-      fullUpdates.mediaType ?? existing.mediaType,
-      fullUpdates.mediaMimeType ?? existing.mediaMimeType,
-      fullUpdates.mediaSize ?? existing.mediaSize,
-      fullUpdates.isViewOnce ? 1 : 0,
-      fullUpdates.updatedAt,
-      id
-    );
-    
-    return this.getMessageById(id);
+
+    return this.connection.transaction((db: Database) => {
+      const getStmt = db.prepare('SELECT * FROM messages WHERE id = ?');
+      const existingRow = getStmt.get(id) as any;
+
+      if (!existingRow) {
+        logger.warn('Attempted to update non-existent message', { messageId: id });
+        return null;
+      }
+
+      const existingMessage = this.mapRowToMessage(existingRow);
+      const updatedAt = getCurrentTimestamp();
+
+      const updateStmt = db.prepare(`
+        UPDATE messages SET
+          content = ?,
+          message_type = ?,
+          media_path = ?,
+          media_type = ?,
+          media_mime_type = ?,
+          media_size = ?,
+          is_view_once = ?,
+          updated_at = ?
+        WHERE id = ?
+      `);
+
+      const isViewOnce =
+        updates.isViewOnce !== undefined
+          ? updates.isViewOnce
+            ? 1
+            : 0
+          : existingMessage.isViewOnce
+            ? 1
+            : 0;
+
+      updateStmt.run(
+        updates.content ?? existingMessage.content,
+        updates.messageType ?? existingMessage.messageType,
+        updates.mediaPath ?? existingMessage.mediaPath,
+        updates.mediaType ?? existingMessage.mediaType,
+        updates.mediaMimeType ?? existingMessage.mediaMimeType,
+        updates.mediaSize ?? existingMessage.mediaSize,
+        isViewOnce,
+        updatedAt,
+        id
+      );
+
+      const updatedRow = getStmt.get(id) as any;
+      if (!updatedRow) {
+        // This should not happen within a transaction if the initial get succeeded
+        logger.error('Failed to retrieve message after update within transaction', { messageId: id });
+        return null;
+      }
+
+      return this.mapRowToMessage(updatedRow);
+    });
   }
  
   public async deleteMessage(id: string): Promise<boolean> {
