@@ -651,7 +651,7 @@ export class MessageHandler {
       }
 
       // Construct a temporary WAMessage to extract details
-      const senderId = normalizeJid(contextInfo.participant);
+      const senderId = normalizeJid(contextInfo.participant || contextInfo.remoteJid || chatId);
       const tempWAMessage: WAMessage = {
         key: {
           id: originalMessageId,
