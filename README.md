@@ -54,70 +54,110 @@ A WhatsApp bot using Baileys that silently monitors and logs all WhatsApp activi
 
 **Note**: The web frontend and Docker deployment are not functional yet.
 
-## Quick Start (Backend Only)
+## Project Structure
+
+This project is now organized into a monorepo structure with two main packages:
+
+- `backend/`: The Node.js application that runs the WhatsApp bot.
+- `frontend/`: The React-based web interface for viewing data (currently not functional).
+
+## Quick Start
 
 ### Prerequisites
 
 - Node.js 20.19+ or 22.12+
 - pnpm 10+
 
-### Installation
+### Backend Setup
 
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd silent-watcher
-```
+All backend commands must be run from the `backend/` directory.
 
-2. Install dependencies:
-```bash
-pnpm install
-pnpm approve-builds  # Required for better-sqlite3
-```
+1.  **Navigate to the backend directory:**
+    ```bash
+    cd backend
+    ```
 
-3. Set up environment:
-```bash
-cp .env.example .env
-# Edit .env with your configuration
-```
+2.  **Install dependencies:**
+    ```bash
+    pnpm install
+    pnpm approve-builds # Required for better-sqlite3
+    ```
 
-4. Build the backend:
-```bash
-pnpm build
-```
+3.  **Set up environment:**
+    ```bash
+    cp .env.example .env
+    # Edit .env with your configuration
+    ```
 
-5. Start the bot:
+4.  **Build the backend:**
+    ```bash
+    pnpm build
+    ```
 
-**Option A - Direct Node.js:**
-```bash
-pnpm start
-```
+5.  **Start the bot:**
 
-**Option B - PM2 (Production):**
-```bash
-pnpm pm2:start    # Start with PM2
-pnpm pm2:logs     # View logs
-pnpm pm2:stop     # Stop the service
-pnpm pm2:restart  # Restart the service
-```
+    **Option A - Direct Node.js:**
+    ```bash
+    pnpm start
+    ```
+
+    **Option B - PM2 (Production):**
+    ```bash
+    pnpm pm2:start    # Start with PM2
+    pnpm pm2:logs     # View logs
+    pnpm pm2:stop     # Stop the service
+    pnpm pm2:restart  # Restart the service
+    ```
+
+### Frontend Setup
+
+All frontend commands must be run from the `frontend/` directory.
+
+1.  **Navigate to the frontend directory:**
+    ```bash
+    cd frontend
+    ```
+
+2.  **Install dependencies:**
+    ```bash
+    pnpm install
+    ```
+
+3.  **Start the development server:**
+    ```bash
+    pnpm dev
+    ```
 
 ### Monitoring the Bot
 
-Since the web interface isn't working yet, monitor the bot through:
+Since the web interface isn't working yet, monitor the bot through the files located in the `backend/data` directory:
 
-- **Live logs**: `tail -f data/logs/app.log`
-- **Error logs**: `tail -f data/logs/error.log`
-- **Debug logs**: `tail -f data/logs/debug.log`
-- **Database**: Use any SQLite tool to open `data/database/invicta.db`
+-   **Live logs**: `tail -f backend/data/logs/app.log`
+-   **Error logs**: `tail -f backend/data/logs/error.log`
+-   **Debug logs**: `tail -f backend/data/logs/debug.log`
+-   **Database**: Use any SQLite tool to open `backend/data/database/invicta.db`
 
 ### Development
 
+**Backend (from `backend/` directory):**
 ```bash
-# Start in development mode (backend only)
+# Start in development mode
 pnpm dev
 
-# Run tests (limited coverage)
+# Run tests
 pnpm test
+
+# Lint code
+pnpm lint
+```
+
+**Frontend (from `frontend/` directory):**
+```bash
+# Start in development mode
+pnpm dev
+
+# Build for production
+pnpm build
 
 # Lint code
 pnpm lint
