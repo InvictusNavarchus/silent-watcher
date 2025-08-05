@@ -4,7 +4,7 @@ services:
   # Backend service
   backend:
     build:
-      context: ./backend
+      context: .
       dockerfile: Dockerfile
       target: production
     container_name: silent-watcher-backend
@@ -47,7 +47,7 @@ services:
   # Frontend service
   frontend:
     build:
-      context: ./frontend
+      context: .
       dockerfile: Dockerfile
       target: frontend
     container_name: silent-watcher-frontend
