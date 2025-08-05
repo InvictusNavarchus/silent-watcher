@@ -13,7 +13,7 @@ A WhatsApp bot using Baileys that silently monitors and logs all WhatsApp activi
 ### ✅ Currently Working
 - 🔍 **Basic Message Monitoring**: Captures messages and logs them to database and files
 - 🗄️ **Database Storage**: SQLite database with message storage
-- 📝 **File Logging**: Comprehensive logging to files in `data/logs/`
+- 📝 **File Logging**: Comprehensive logging to files in `backend/data/logs/`
 - 🚀 **Production Deployment**: PM2 process management
 ### 🚧 Planned/In Development
 - 📊 **Real-time Dashboard**: React-based web interface *(not working)*
@@ -48,8 +48,8 @@ A WhatsApp bot using Baileys that silently monitors and logs all WhatsApp activi
 1. **Direct Node.js**: Run the backend service directly
 2. **PM2 Process Management**: Use PM2 for production deployment with auto-restart
 3. **Manual Data Access**: View captured data through:
-   - Log files in `data/logs/` directory
-   - SQLite database at `data/database/your-database.db`
+   - Log files in `backend/data/logs/` directory
+   - SQLite database at `backend/data/database/your-database.db`
    - Use any SQLite browser/tool to query the database
 
 **Note**: The web frontend and Docker deployment are not functional yet.
