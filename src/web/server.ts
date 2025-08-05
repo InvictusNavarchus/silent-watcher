@@ -110,7 +110,7 @@ export class WebServer {
     this.setupStaticFileServing();
 
     // Catch-all handler for SPA routing
-    this.app.get('*', (_req, res) => {
+    this.app.get('/{*path}', (_req, res) => {
       const frontendPath = join(process.cwd(), 'frontend', 'dist', 'index.html');
       
       if (existsSync(frontendPath)) {
@@ -155,7 +155,7 @@ export class WebServer {
    */
   private setupErrorHandling(): void {
     // 404 handler for API routes
-    this.app.use('/api/*', (_req, res) => {
+    this.app.use('/api/*path', (_req, res) => {
       res.status(404).json({
         success: false,
         error: 'API endpoint not found'
